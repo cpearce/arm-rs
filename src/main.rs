@@ -1,24 +1,36 @@
-extern crate csv;
-
 use std::error::Error;
 use std::io;
+use std::io::prelude::*;
 use std::process;
 use std::fs::File;
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};  
+use std::hash::{Hash, Hasher};
+use std::cmp::Ordering;
 
+fn read_records(itemizer: &mut Itemizer, path: &str) -> Vec<Vec<u32>> {
+    let mut file = File::open(path).unwrap();
+    let mut contents = String::new();
+    file.read_to_string(&mut contents).unwrap();
+    let mut records = vec![];
+    for line in contents.lines() {
+        let mut record: Vec<u32> = vec![];
+        for s in line.split(",") {
+            let k = s.trim();
+            record.push(itemizer.id_of(k));
+        }
+        if record.len() > 0 {
+            records.push(record);
+        }
+    }
+    records
+}
 
-fn count_item_frequencies(itemizer: &mut Itemizer, path: &str) -> Result<HashMap<u32, u32>, Box<Error>> {
-    // Build the CSV reader and iterate over each record.
+fn count_item_frequencies(itemizer: &mut Itemizer,
+                          transactions: &Vec<Vec<u32>>) -> Result<HashMap<u32, u32>, Box<Error>> {
     let mut item_count: HashMap<u32, u32> = HashMap::new();
-    let mut file = File::open(path)?;
-    let mut rdr = csv::Reader::from_reader(file);
-    for result in rdr.records() {
-        // The iterator yields Result<StringRecord, Error>, so we check the
-        // error here..
-        let record = result?;
-        for item in record {
-            let counter = item_count.entry(itemizer.id_of(&item)).or_insert(0);
+    for transaction in transactions {
+        for item in transaction {
+            let counter = item_count.entry(*item).or_insert(0);
             *counter += 1;
         }
     }
@@ -119,11 +131,16 @@ impl FPTree {
 struct Itemizer {
     next_item_id: u32,
     item_str_to_id: HashMap<String, u32>,
+    item_id_to_str: HashMap<u32,String>,
 }
 
 impl Itemizer {
     fn new() -> Itemizer {
-        Itemizer { next_item_id: 1, item_str_to_id: HashMap::new() }
+        Itemizer {
+            next_item_id: 1,
+            item_str_to_id: HashMap::new(),
+            item_id_to_str: HashMap::new(),
+        }
     }
     fn id_of(&mut self, item: &str) -> u32 {
         if let Some(id) = self.item_str_to_id.get(item) {
@@ -132,7 +149,14 @@ impl Itemizer {
         let id = self.next_item_id;
         self.next_item_id += 1;
         self.item_str_to_id.insert(String::from(item), id);
+        self.item_id_to_str.insert(id, String::from(item));
         return id;
+    }
+    fn str_of(&self, id: u32) -> String {
+        match self.item_id_to_str.get(&id) {
+            Some(s) => s.clone(),
+            _ => String::from("Unknown"),
+        }
     }
 }
 
@@ -150,7 +174,8 @@ fn partition_transaction(v: &mut [u32],
 
   let mut split = 0; // everything before this is less than pivot.
   for index in 0..v.len() {
-    if get_item_count(v[index], item_count) >= pivot_count {
+    let f = get_item_count(v[index], item_count);
+    if f > pivot_count || (f == pivot_count && v[index] >= v[pivot]){
       v.swap(split, index);
       split += 1;
     }
@@ -162,12 +187,20 @@ fn partition_transaction(v: &mut [u32],
 
 fn sort_transaction(transaction: &mut [u32],
                     item_count: &HashMap<u32, u32>) {
-    if transaction.len() <= 1 {
-        return;
+    transaction.sort_by(|a,b| {
+        if a == b {
+            return Ordering::Equal;
+        }
+        let a_count = get_item_count(*a, item_count);
+        let b_count = get_item_count(*b, item_count);
+        if b_count < a_count {
+            return Ordering::Less;
+        }
+        Ordering::Greater
+    });
+    for i in 1..transaction.len() {
+        assert!(get_item_count(transaction[i - 1], &item_count) >= get_item_count(transaction[i], &item_count));
     }
-    let pivot = partition_transaction(transaction, item_count);
-    sort_transaction(&mut transaction[0..pivot], item_count);
-    sort_transaction(&mut transaction[pivot+1..], item_count);
 }
 
 
@@ -237,10 +270,10 @@ fn fp_growth(fptree: &FPTree, min_count: u32, path: &[u32]) -> Vec<Vec<u32>> {
 
     // Maps a node to its parent.
     let parent_table = make_parent_table(&fptree);
-    
+
     // Maps item id to vec of &FPNode's for those items.
     let item_index = make_item_index(&fptree);
-    
+
     // Get list of items in the tree which are above the minimum support
     // threshold. Sort the list in increasing order of frequency.
     let mut items: Vec<u32> =
@@ -281,36 +314,37 @@ fn run(path: &str) -> Result<(), Box<Error>> {
     // Make one pass of the dataset to calculate the item frequencies
     // for the initial tree.
     let mut itemizer: Itemizer = Itemizer::new();
-    let item_count = count_item_frequencies(&mut itemizer, path).unwrap();
+    let transactions = read_records(&mut itemizer, path);
+    let item_count = count_item_frequencies(&mut itemizer, &transactions).unwrap();
 
     println!("Counted item frequencies.");
 
     // Load the initial tree.
     let mut fptree = FPTree::new();
     // For each record in file...
-    let mut file = File::open(path)?;
-    let mut rdr = csv::Reader::from_reader(file);
-    for result in rdr.records() {
+    for mut transaction in transactions {
         // Convert the transaction from a vector of strings to vector of
         // item ids.
-        let record = result?;
-        let mut transaction: Vec<u32> = vec![];
-        for item in record {
-            transaction.push(itemizer.id_of(&item));
-        }
         sort_transaction(&mut transaction, &item_count);
-        for i in 1..transaction.len() {
-            assert!(get_item_count(transaction[i - 1], &item_count) >= get_item_count(transaction[i], &item_count));
-        }
         fptree.insert(&transaction, 1);
     }
 
     println!("Starting mining");
 
     // let min_support = 0.2;
-    let min_count = fptree.num_transactions() / 5;
+    let min_count = 2;//2 / fptree.num_transactions();
 
     let patterns = fp_growth(&fptree, min_count, &vec![]);
+
+
+    println!("patterns: ({}) min_count={}", patterns.len(), min_count);
+    for itemset in patterns {
+        let mut pretty = vec![];
+        for x in itemset {
+            pretty.push(itemizer.str_of(x));
+        }
+        println!("{:?}", pretty);
+    }
 
     Ok(())
 }
