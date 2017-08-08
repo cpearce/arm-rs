@@ -1,5 +1,4 @@
 use std::error::Error;
-use std::io;
 use std::io::prelude::*;
 use std::process;
 use std::fs::File;
@@ -25,8 +24,7 @@ fn read_records(itemizer: &mut Itemizer, path: &str) -> Vec<Vec<u32>> {
     records
 }
 
-fn count_item_frequencies(itemizer: &mut Itemizer,
-                          transactions: &Vec<Vec<u32>>) -> Result<HashMap<u32, u32>, Box<Error>> {
+fn count_item_frequencies(transactions: &Vec<Vec<u32>>) -> Result<HashMap<u32, u32>, Box<Error>> {
     let mut item_count: HashMap<u32, u32> = HashMap::new();
     for transaction in transactions {
         for item in transaction {
@@ -167,24 +165,6 @@ fn get_item_count(item: u32, item_count: &HashMap<u32, u32>) -> u32 {
     }
 }
 
-fn partition_transaction(v: &mut [u32],
-                        item_count: &HashMap<u32, u32>) -> usize {
-  let pivot = v.len() - 1;
-  let pivot_count = get_item_count(v[pivot], item_count);
-
-  let mut split = 0; // everything before this is less than pivot.
-  for index in 0..v.len() {
-    let f = get_item_count(v[index], item_count);
-    if f > pivot_count || (f == pivot_count && v[index] >= v[pivot]){
-      v.swap(split, index);
-      split += 1;
-    }
-  }
-  assert!(split > 0);
-  split - 1
-}
-
-
 fn sort_transaction(transaction: &mut [u32],
                     item_count: &HashMap<u32, u32>) {
     transaction.sort_by(|a,b| {
@@ -250,9 +230,7 @@ fn path_from_root_to<'a>(node: &'a FPNode,
     path
 }
 
-fn construct_conditional_tree<'a>(fptree: &'a FPTree,
-                                  item: u32,
-                                  parent_table: &HashMap<&'a FPNode, &'a FPNode>,
+fn construct_conditional_tree<'a>(parent_table: &HashMap<&'a FPNode, &'a FPNode>,
                                   item_list: &Vec<&'a FPNode>) -> FPTree {
     let mut conditional_tree = FPTree::new();
 
@@ -279,7 +257,8 @@ fn fp_growth(fptree: &FPTree, min_count: u32, path: &[u32]) -> Vec<Vec<u32>> {
     let mut items: Vec<u32> =
         item_index.keys()
                   .map(|x| *x)
-                  .filter(|x| get_item_count(*x, fptree.item_count()) > min_count)
+                  .filter(|x|
+                      get_item_count(*x, fptree.item_count()) > min_count)
                   .collect();
     sort_transaction(&mut items, fptree.item_count());
     items.reverse();
@@ -292,11 +271,9 @@ fn fp_growth(fptree: &FPTree, min_count: u32, path: &[u32]) -> Vec<Vec<u32>> {
         let mut itemset: Vec<u32> = Vec::from(path);
         itemset.push(item);
 
-        let item_list = if let Some(item_list) = item_index.get(&item) {
+        if let Some(item_list) = item_index.get(&item) {
             let conditional_tree =
-                construct_conditional_tree(&fptree,
-                                           item,
-                                           &parent_table,
+                construct_conditional_tree(&parent_table,
                                            item_list);
             itemsets.extend(fp_growth(&conditional_tree, min_count, &itemset));
         };
@@ -315,7 +292,7 @@ fn run(path: &str) -> Result<(), Box<Error>> {
     // for the initial tree.
     let mut itemizer: Itemizer = Itemizer::new();
     let transactions = read_records(&mut itemizer, path);
-    let item_count = count_item_frequencies(&mut itemizer, &transactions).unwrap();
+    let item_count = count_item_frequencies(&transactions).unwrap();
 
     println!("Counted item frequencies.");
 
