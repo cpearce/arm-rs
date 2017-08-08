@@ -85,8 +85,25 @@ impl FPNode {
             child.insert(&transaction[1 ..], count);
         }
     }
+
     fn is_root(&self) -> bool {
         self.item == 0
+    }
+
+    fn print(&self, itemizer: &Itemizer, item_count: &HashMap<u32, u32>, level: u32) {
+
+        let mut items: Vec<u32> = self.children.keys().cloned().collect();
+        sort_transaction(&mut items, item_count);
+
+        for _ in 0 .. level {
+            print!("  ");
+        }
+        println!("{}:{}", itemizer.str_of(self.item), self.count);
+        for item in items {
+            if let Some(node) = self.children.get(&item) {
+                node.print(itemizer, item_count, level + 1);
+            }
+        }
     }
 }
 
@@ -123,6 +140,15 @@ impl FPTree {
         &self.item_count
     }
 
+    fn print(&self, itemizer: &Itemizer) {
+        let mut items: Vec<u32> = self.root.children.keys().cloned().collect();
+        sort_transaction(&mut items, &self.item_count);
+        for item in items {
+            if let Some(node) = self.root.children.get(&item) {
+                node.print(itemizer, &self.item_count, 1);
+            }
+        }
+    }
 }
 
 
@@ -305,6 +331,9 @@ fn run(path: &str) -> Result<(), Box<Error>> {
         sort_transaction(&mut transaction, &item_count);
         fptree.insert(&transaction, 1);
     }
+
+    println!("Loaded tree");
+    fptree.print(&itemizer);
 
     println!("Starting mining");
 
