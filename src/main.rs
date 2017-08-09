@@ -37,6 +37,7 @@ fn count_item_frequencies(transactions: &Vec<Vec<u32>>) -> Result<HashMap<u32, u
 
 #[derive(Eq, PartialEq, Debug)]
 struct FPNode {
+    id: u32,
     item: u32,
     count: u32,
     end_count: u32,
@@ -49,21 +50,17 @@ impl Hash for FPNode {
     }
 }
 
-// impl Eq for FPNode {
-//     fn eq(&self, other: &FPNode) -> bool {
-//         self.item == other.item;
-//     }
-// }
-
 struct FPTree {
     root: FPNode,
     num_transactions: u32,
     item_count: HashMap<u32, u32>,
+    node_count: u32,
 }
 
 impl FPNode {
-    fn new(item: u32) -> FPNode {
+    fn new(id: u32, item: u32) -> FPNode {
         FPNode {
+            id: id,
             item: item,
             count: 0,
             end_count: 0,
@@ -71,19 +68,25 @@ impl FPNode {
         }
     }
 
-    fn insert(&mut self, transaction: &[u32], count: u32) {
+    fn insert(&mut self, transaction: &[u32], count: u32, next_node_id: u32) -> u32 {
         if transaction.len() == 0 {
-            return;
+            return 0;
         }
-        // if transaction.len()
+
         let item = transaction[0];
-        let mut child = self.children.entry(item).or_insert(FPNode::new(item));
+        let mut new_nodes = 0;
+        let mut child = self.children.entry(item).or_insert_with(|| {
+            new_nodes += 1;
+            FPNode::new(next_node_id, item)
+        });
+
         child.count += 1;
         if transaction.len() == 1 {
             child.end_count += count;
         } else {
-            child.insert(&transaction[1 ..], count);
+            new_nodes += child.insert(&transaction[1 ..], count, next_node_id + new_nodes);
         }
+        new_nodes
     }
 
     fn is_root(&self) -> bool {
@@ -93,7 +96,7 @@ impl FPNode {
     fn print(&self, itemizer: &Itemizer, item_count: &HashMap<u32, u32>, level: u32) {
 
         let mut items: Vec<u32> = self.children.keys().cloned().collect();
-        sort_transaction(&mut items, item_count);
+        sort_transaction(&mut items, item_count, SortOrder::Decreasing);
 
         for _ in 0 .. level {
             print!("  ");
@@ -110,11 +113,12 @@ impl FPNode {
 impl FPTree {
 
     fn new() -> FPTree {
-        let root_node = FPNode::new(0);
+        let root_node = FPNode::new(0, 0);
         return FPTree {
             root: root_node,
             num_transactions: 0,
-            item_count: HashMap::new()
+            item_count: HashMap::new(),
+            node_count: 1,
         };
     }
 
@@ -124,7 +128,7 @@ impl FPTree {
         for item in transaction {
             *self.item_count.entry(*item).or_insert(0) += count;
         }
-        self.root.insert(&transaction, count);       
+        self.node_count += self.root.insert(&transaction, count, self.node_count);
         self.num_transactions += 1; 
     }
 
@@ -142,7 +146,7 @@ impl FPTree {
 
     fn print(&self, itemizer: &Itemizer) {
         let mut items: Vec<u32> = self.root.children.keys().cloned().collect();
-        sort_transaction(&mut items, &self.item_count);
+        sort_transaction(&mut items, &self.item_count, SortOrder::Decreasing);
         for item in items {
             if let Some(node) = self.root.children.get(&item) {
                 node.print(itemizer, &self.item_count, 1);
@@ -191,27 +195,40 @@ fn get_item_count(item: u32, item_count: &HashMap<u32, u32>) -> u32 {
     }
 }
 
+enum SortOrder {
+    Increasing,
+    Decreasing
+}
+
 fn sort_transaction(transaction: &mut [u32],
-                    item_count: &HashMap<u32, u32>) {
+                    item_count: &HashMap<u32, u32>,
+                    order: SortOrder) {
     transaction.sort_by(|a,b| {
-        if a == b {
-            return Ordering::Equal;
-        }
+        assert!(a != b);
         let a_count = get_item_count(*a, item_count);
         let b_count = get_item_count(*b, item_count);
-        if b_count < a_count {
-            return Ordering::Less;
+        match order {
+            SortOrder::Increasing => {
+                if a_count == b_count {
+                    return a.cmp(b);
+                }
+                a_count.cmp(&b_count)
+            },
+            SortOrder::Decreasing => {
+                if a_count == b_count {
+                    return a.cmp(b);
+                }
+                b_count.cmp(&a_count)
+            }
         }
-        Ordering::Greater
     });
-    for i in 1..transaction.len() {
-        assert!(get_item_count(transaction[i - 1], &item_count) >= get_item_count(transaction[i], &item_count));
-    }
 }
 
 
 fn add_parents_to_table<'a>(node: &'a FPNode, table: &mut HashMap<&'a FPNode, &'a FPNode>) {
     for child in node.children.values() {
+//        println!("add_parent_to_table node={}:{} child={}:{}", node.item, node.count, child.item, child.count);
+        assert!(!table.contains_key(child));
         table.insert(child, node);
         add_parents_to_table(child, table)
     }
@@ -284,10 +301,10 @@ fn fp_growth(fptree: &FPTree, min_count: u32, path: &[u32]) -> Vec<Vec<u32>> {
         item_index.keys()
                   .map(|x| *x)
                   .filter(|x|
-                      get_item_count(*x, fptree.item_count()) > min_count)
+                      get_item_count(*x, fptree.item_count()) >= min_count)
                   .collect();
-    sort_transaction(&mut items, fptree.item_count());
-    items.reverse();
+    sort_transaction(&mut items, fptree.item_count(), SortOrder::Increasing);
+//    items.reverse();
 
     // println!("fp_growth items {:?}", items);
 
@@ -328,7 +345,7 @@ fn run(path: &str) -> Result<(), Box<Error>> {
     for mut transaction in transactions {
         // Convert the transaction from a vector of strings to vector of
         // item ids.
-        sort_transaction(&mut transaction, &item_count);
+        sort_transaction(&mut transaction, &item_count, SortOrder::Decreasing);
         fptree.insert(&transaction, 1);
     }
 
