@@ -46,7 +46,7 @@ struct FPNode {
 
 impl Hash for FPNode {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.item.hash(state);
+        self.id.hash(state);
     }
 }
 
