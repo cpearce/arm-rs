@@ -80,7 +80,7 @@ impl FPNode {
             FPNode::new(next_node_id, item)
         });
 
-        child.count += 1;
+        child.count += count;
         if transaction.len() == 1 {
             child.end_count += count;
         } else {
