@@ -304,9 +304,6 @@ fn fp_growth(fptree: &FPTree, min_count: u32, path: &[u32]) -> Vec<Vec<u32>> {
                       get_item_count(*x, fptree.item_count()) >= min_count)
                   .collect();
     sort_transaction(&mut items, fptree.item_count(), SortOrder::Increasing);
-//    items.reverse();
-
-    // println!("fp_growth items {:?}", items);
 
     for item in items {
         // The path to here plus this item must be above the minimum
