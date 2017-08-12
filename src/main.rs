@@ -200,30 +200,27 @@ enum SortOrder {
     Decreasing
 }
 
+fn item_cmp(a: &u32, b: &u32, item_count: &HashMap<u32, u32>) -> Ordering {
+    let a_count = get_item_count(*a, item_count);
+    let b_count = get_item_count(*b, item_count);
+    if a_count == b_count {
+        return a.cmp(b);
+    }
+    a_count.cmp(&b_count)
+}
+
 fn sort_transaction(transaction: &mut [u32],
                     item_count: &HashMap<u32, u32>,
                     order: SortOrder) {
-    transaction.sort_by(|a,b| {
-        assert!(a != b);
-        let a_count = get_item_count(*a, item_count);
-        let b_count = get_item_count(*b, item_count);
-        match order {
-            SortOrder::Increasing => {
-                if a_count == b_count {
-                    return a.cmp(b);
-                }
-                a_count.cmp(&b_count)
-            },
-            SortOrder::Decreasing => {
-                if a_count == b_count {
-                    return a.cmp(b);
-                }
-                b_count.cmp(&a_count)
-            }
+    match order {
+        SortOrder::Increasing => {
+            transaction.sort_by(|a,b| item_cmp(a, b, item_count))
+        },
+        SortOrder::Decreasing => {
+            transaction.sort_by(|a,b| item_cmp(b, a, item_count))
         }
-    });
+    }
 }
-
 
 fn add_parents_to_table<'a>(node: &'a FPNode, table: &mut HashMap<&'a FPNode, &'a FPNode>) {
     for child in node.children.values() {
