@@ -1,3 +1,4 @@
+extern crate rayon;
 use std::error::Error;
 use std::io::prelude::*;
 use std::process;
@@ -7,6 +8,7 @@ use std::hash::{Hash, Hasher};
 use std::cmp::Ordering;
 
 fn read_records(itemizer: &mut Itemizer, path: &str) -> Vec<Vec<u32>> {
+use rayon::prelude::*;
     let mut file = File::open(path).unwrap();
     let mut contents = String::new();
     file.read_to_string(&mut contents).unwrap();
@@ -35,13 +37,19 @@ fn count_item_frequencies(transactions: &Vec<Vec<u32>>) -> Result<HashMap<u32, u
     Ok(item_count)
 }
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, Debug)]
 struct FPNode {
     id: u32,
     item: u32,
     count: u32,
     end_count: u32,
     children: HashMap<u32, FPNode>,
+}
+
+impl PartialEq for FPNode {
+    fn eq(&self, other: &FPNode) -> bool {
+        self.id == other.id
+    }
 }
 
 impl Hash for FPNode {
@@ -282,9 +290,13 @@ fn construct_conditional_tree<'a>(parent_table: &HashMap<&'a FPNode, &'a FPNode>
     conditional_tree
 }
 
-fn fp_growth(fptree: &FPTree, min_count: u32, path: &[u32]) -> Vec<Vec<u32>> {
-    // println!("fpgrowth path={:?}", path);
-    let mut itemsets = vec![];
+fn fp_growth(fptree: &FPTree, min_count: u32, path: &[u32], itemizer: &Itemizer)
+    -> Vec<Vec<u32>>
+{
+//    let s =
+//        path.iter().map(|x| itemizer.str_of(*x)).collect::<Vec<String>>();
+//    println!("fpgrowth path={:?}", s);
+    let mut itemsets: Vec<Vec<u32>> = vec![];
 
     // Maps a node to its parent.
     let parent_table = make_parent_table(&fptree);
@@ -302,23 +314,31 @@ fn fp_growth(fptree: &FPTree, min_count: u32, path: &[u32]) -> Vec<Vec<u32>> {
                   .collect();
     sort_transaction(&mut items, fptree.item_count(), SortOrder::Increasing);
 
-    for item in items {
+    let x: Vec<Vec<u32>> = items.par_iter().flat_map(|item| -> Vec<Vec<u32>>{
         // The path to here plus this item must be above the minimum
         // support threshold.
         let mut itemset: Vec<u32> = Vec::from(path);
-        itemset.push(item);
+        itemset.push(*item);
 
-        if let Some(item_list) = item_index.get(&item) {
+        let mut result:Vec<Vec<u32>> = Vec::new();
+
+        if let Some(item_list) = item_index.get(item) {
             let conditional_tree =
                 construct_conditional_tree(&parent_table,
                                            item_list);
-            itemsets.extend(fp_growth(&conditional_tree, min_count, &itemset));
+
+//            fptree.print(itemizer);
+
+//            conditional_tree.print(itemizer);
+
+            let mut y = fp_growth(&conditional_tree, min_count, &itemset, itemizer);
+            result.append(&mut y);
         };
+        result.push(itemset);
+        result
+    }).collect::<Vec<Vec<u32>>>();
 
-        itemsets.push(itemset);
-
-    }
-
+    itemsets.extend(x);
     itemsets
 }
 
@@ -344,14 +364,14 @@ fn run(path: &str) -> Result<(), Box<Error>> {
     }
 
     println!("Loaded tree");
-    fptree.print(&itemizer);
+//    fptree.print(&itemizer);
 
     println!("Starting mining");
 
     // let min_support = 0.2;
-    let min_count = 2;//2 / fptree.num_transactions();
+    let min_count = (0.05 * (fptree.num_transactions() as f64)) as u32;
 
-    let patterns = fp_growth(&fptree, min_count, &vec![]);
+    let patterns = fp_growth(&fptree, min_count, &vec![], &itemizer);
 
 
     println!("patterns: ({}) min_count={}", patterns.len(), min_count);
