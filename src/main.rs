@@ -310,7 +310,7 @@ fn fp_growth(fptree: &FPTree, min_count: u32, path: &[u32], itemizer: &Itemizer)
         item_index.keys()
                   .map(|x| *x)
                   .filter(|x|
-                      get_item_count(*x, fptree.item_count()) >= min_count)
+                      get_item_count(*x, fptree.item_count()) > min_count)
                   .collect();
     sort_transaction(&mut items, fptree.item_count(), SortOrder::Increasing);
 
