@@ -4,13 +4,11 @@ extern crate itertools;
 use std::error::Error;
 use std::io::prelude::*;
 use std::io::BufReader;
-use std::io::Lines;
 use std::process;
 use std::fs::File;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::cmp::Ordering;
-use std::iter;
 use itertools::Itertools;
 use rayon::prelude::*;
 
@@ -22,7 +20,7 @@ struct TransactionReader<'a> {
 
 impl<'a> TransactionReader<'a> {
     fn new(path: &str, itemizer: &'a mut Itemizer) -> TransactionReader<'a> {
-        let mut file = File::open(path).unwrap();
+        let file = File::open(path).unwrap();
         let reader = BufReader::new(file);
         TransactionReader{reader: reader, itemizer}
     }
