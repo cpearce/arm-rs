@@ -153,7 +153,7 @@ impl FPTree {
             *self.item_count.entry(*item).or_insert(0) += count;
         }
         self.node_count += self.root.insert(&transaction, count, self.node_count);
-        self.num_transactions += 1; 
+        self.num_transactions += count;
     }
 
     fn num_transactions(&self) -> u32 {
