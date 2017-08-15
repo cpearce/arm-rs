@@ -1,36 +1,54 @@
 extern crate rayon;
+extern crate itertools;
+
 use std::error::Error;
 use std::io::prelude::*;
+use std::io::BufReader;
+use std::io::Lines;
 use std::process;
 use std::fs::File;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::cmp::Ordering;
-
-fn read_records(itemizer: &mut Itemizer, path: &str) -> Vec<Vec<u32>> {
+use std::iter;
+use itertools::Itertools;
 use rayon::prelude::*;
-    let mut file = File::open(path).unwrap();
-    let mut contents = String::new();
-    file.read_to_string(&mut contents).unwrap();
-    let mut records = vec![];
-    for line in contents.lines() {
-        let mut record: Vec<u32> = vec![];
-        for s in line.split(",") {
-            let k = s.trim();
-            record.push(itemizer.id_of(k));
-        }
-        if record.len() > 0 {
-            records.push(record);
-        }
-    }
-    records
+
+
+struct TransactionReader<'a> {
+    reader: BufReader<File>,
+    itemizer: &'a mut Itemizer,
 }
 
-fn count_item_frequencies(transactions: &Vec<Vec<u32>>) -> Result<HashMap<u32, u32>, Box<Error>> {
+impl<'a> TransactionReader<'a> {
+    fn new(path: &str, itemizer: &'a mut Itemizer) -> TransactionReader<'a> {
+        let mut file = File::open(path).unwrap();
+        let reader = BufReader::new(file);
+        TransactionReader{reader: reader, itemizer}
+    }
+}
+
+impl<'a> Iterator for TransactionReader<'a> {
+    type Item = Vec<u32>;
+    fn next(&mut self) -> Option<Vec<u32>> {
+        let mut line = String::new();
+        let len = self.reader.read_line(&mut line).unwrap();
+        if len == 0 {
+            return None;
+        }
+        Some(
+            line
+            .split(",")
+            .map(|s| self.itemizer.id_of(s.trim()))
+            .collect::<Vec<u32>>())
+    }
+}
+
+fn count_item_frequencies(reader: TransactionReader) -> Result<HashMap<u32, u32>, Box<Error>> {
     let mut item_count: HashMap<u32, u32> = HashMap::new();
-    for transaction in transactions {
+    for transaction in reader {
         for item in transaction {
-            let counter = item_count.entry(*item).or_insert(0);
+            let counter = item_count.entry(item).or_insert(0);
             *counter += 1;
         }
     }
@@ -232,7 +250,6 @@ fn sort_transaction(transaction: &mut [u32],
 
 fn add_parents_to_table<'a>(node: &'a FPNode, table: &mut HashMap<&'a FPNode, &'a FPNode>) {
     for child in node.children.values() {
-//        println!("add_parent_to_table node={}:{} child={}:{}", node.item, node.count, child.item, child.count);
         assert!(!table.contains_key(child));
         table.insert(child, node);
         add_parents_to_table(child, table)
@@ -293,9 +310,6 @@ fn construct_conditional_tree<'a>(parent_table: &HashMap<&'a FPNode, &'a FPNode>
 fn fp_growth(fptree: &FPTree, min_count: u32, path: &[u32], itemizer: &Itemizer)
     -> Vec<Vec<u32>>
 {
-//    let s =
-//        path.iter().map(|x| itemizer.str_of(*x)).collect::<Vec<String>>();
-//    println!("fpgrowth path={:?}", s);
     let mut itemsets: Vec<Vec<u32>> = vec![];
 
     // Maps a node to its parent.
@@ -326,11 +340,6 @@ fn fp_growth(fptree: &FPTree, min_count: u32, path: &[u32], itemizer: &Itemizer)
             let conditional_tree =
                 construct_conditional_tree(&parent_table,
                                            item_list);
-
-//            fptree.print(itemizer);
-
-//            conditional_tree.print(itemizer);
-
             let mut y = fp_growth(&conditional_tree, min_count, &itemset, itemizer);
             result.append(&mut y);
         };
@@ -342,35 +351,28 @@ fn fp_growth(fptree: &FPTree, min_count: u32, path: &[u32], itemizer: &Itemizer)
     itemsets
 }
 
-fn run(path: &str) -> Result<(), Box<Error>> {
-    println!("Entering run()");
+fn run(path: &str, min_support: f64) -> Result<(), Box<Error>> {
+    println!("mining {}", path);
 
     // Make one pass of the dataset to calculate the item frequencies
     // for the initial tree.
     let mut itemizer: Itemizer = Itemizer::new();
-    let transactions = read_records(&mut itemizer, path);
-    let item_count = count_item_frequencies(&transactions).unwrap();
-
+    let item_count = count_item_frequencies(
+        TransactionReader::new(path, &mut itemizer)).unwrap();
     println!("Counted item frequencies.");
 
-    // Load the initial tree.
+    // Load the initial tree, by re-reading the data set and inserting
+    // each transaction into the tree sorted by item frequency.
     let mut fptree = FPTree::new();
-    // For each record in file...
-    for mut transaction in transactions {
-        // Convert the transaction from a vector of strings to vector of
-        // item ids.
+    for mut transaction in TransactionReader::new(path, &mut itemizer) {
         sort_transaction(&mut transaction, &item_count, SortOrder::Decreasing);
         fptree.insert(&transaction, 1);
     }
 
     println!("Loaded tree");
-//    fptree.print(&itemizer);
-
     println!("Starting mining");
 
-    // let min_support = 0.2;
-    let min_count = (0.05 * (fptree.num_transactions() as f64)) as u32;
-
+    let min_count = (min_support * (fptree.num_transactions() as f64)) as u32;
     let patterns = fp_growth(&fptree, min_count, &vec![], &itemizer);
 
 
@@ -387,8 +389,20 @@ fn run(path: &str) -> Result<(), Box<Error>> {
 }
 
 fn main() {
-    if let Err(err) = run("c:\\Users\\chris\\src\\rust\\arm\\datasets\\test.csv") {
-        println!("error running example: {}", err);
-        process::exit(1);
+    let files = [
+        // "datasets/fp-test.csv",
+        // "datasets/fp-test2.csv",
+        // "datasets/fp-test3.csv",
+        // "datasets/fp-test4.csv",
+        // "datasets/fp-test5.csv",
+        // "datasets/UCI-zoo.csv",
+        "datasets/kosarak.csv",
+    ];
+
+    for file in files.iter().sorted() {
+        if let Err(err) = run(file, 0.001) {
+            println!("error running example: {}", err);
+            process::exit(1);
+        }
     }
 }
