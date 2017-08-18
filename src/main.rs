@@ -345,14 +345,15 @@ fn fp_growth(fptree: &FPTree, min_count: u32, path: &[u32], itemizer: &Itemizer)
 }
 
 fn run(path: &str, min_support: f64) -> Result<(), Box<Error>> {
-    println!("mining {}", path);
-
+    println!("Mining {}", path);
+    println!("Making first pass of dataset to count item frequencies...");
     // Make one pass of the dataset to calculate the item frequencies
     // for the initial tree.
     let mut itemizer: Itemizer = Itemizer::new();
     let item_count = count_item_frequencies(
         TransactionReader::new(path, &mut itemizer)).unwrap();
-    println!("Counted item frequencies.");
+
+    println!("Building initial FPTree based on item frequencies...");
 
     // Load the initial tree, by re-reading the data set and inserting
     // each transaction into the tree sorted by item frequency.
@@ -362,8 +363,7 @@ fn run(path: &str, min_support: f64) -> Result<(), Box<Error>> {
         fptree.insert(&transaction, 1);
     }
 
-    println!("Loaded tree");
-    println!("Starting mining");
+    println!("Starting recursive FPGrowth...");
 
     let min_count = (min_support * (fptree.num_transactions() as f64)) as u32;
     let patterns = fp_growth(&fptree, min_count, &vec![], &itemizer);
