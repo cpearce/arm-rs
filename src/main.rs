@@ -297,7 +297,6 @@ fn construct_conditional_tree<'a>(parent_table: &HashMap<&'a FPNode, &'a FPNode>
         let path = path_from_root_to(node, parent_table);
         conditional_tree.insert(&path, node.count);
     }
-    // let paths = item_index.g
     conditional_tree
 }
 
