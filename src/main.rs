@@ -58,7 +58,6 @@ struct FPNode {
     id: u32,
     item: u32,
     count: u32,
-    end_count: u32,
     children: HashMap<u32, FPNode>,
 }
 
@@ -87,7 +86,6 @@ impl FPNode {
             id: id,
             item: item,
             count: 0,
-            end_count: 0,
             children: HashMap::new()
         }
     }
@@ -105,9 +103,7 @@ impl FPNode {
         });
 
         child.count += count;
-        if transaction.len() == 1 {
-            child.end_count += count;
-        } else {
+        if transaction.len() > 1 {
             new_nodes += child.insert(&transaction[1 ..], count, next_node_id + new_nodes);
         }
         new_nodes
