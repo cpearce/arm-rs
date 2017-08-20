@@ -1,16 +1,17 @@
 extern crate rayon;
 extern crate itertools;
 
-use itertools::Itertools;
 use itertools::sorted;
 use rayon::prelude::*;
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::env;
 use std::error::Error;
 use std::fs::File;
 use std::hash::{Hash, Hasher};
 use std::io::BufReader;
 use std::io::prelude::*;
+use std::path::Path;
 use std::process;
 
 
@@ -345,21 +346,22 @@ fn fp_growth(fptree: &FPTree, min_count: u32, path: &[u32], itemizer: &Itemizer)
     itemsets
 }
 
-fn run(path: &str, min_support: f64) -> Result<(), Box<Error>> {
-    println!("Mining {}", path);
+fn mine_fp_growth(input_csv_file_path: &str,
+                  output_csv_file_path: &str,
+                  min_support: f64) -> Result<(), Box<Error>> {
     println!("Making first pass of dataset to count item frequencies...");
     // Make one pass of the dataset to calculate the item frequencies
     // for the initial tree.
     let mut itemizer: Itemizer = Itemizer::new();
     let item_count = count_item_frequencies(
-        TransactionReader::new(path, &mut itemizer)).unwrap();
+        TransactionReader::new(input_csv_file_path, &mut itemizer)).unwrap();
 
     println!("Building initial FPTree based on item frequencies...");
 
     // Load the initial tree, by re-reading the data set and inserting
     // each transaction into the tree sorted by item frequency.
     let mut fptree = FPTree::new();
-    for mut transaction in TransactionReader::new(path, &mut itemizer) {
+    for mut transaction in TransactionReader::new(input_csv_file_path, &mut itemizer) {
         sort_transaction(&mut transaction, &item_count, SortOrder::Decreasing);
         fptree.insert(&transaction, 1);
     }
@@ -383,21 +385,60 @@ fn run(path: &str, min_support: f64) -> Result<(), Box<Error>> {
     Ok(())
 }
 
-fn main() {
-    let files = [
-        // "datasets/fp-test.csv",
-        // "datasets/fp-test2.csv",
-        // "datasets/fp-test3.csv",
-        // "datasets/fp-test4.csv",
-        // "datasets/fp-test5.csv",
-        // "datasets/UCI-zoo.csv",
-        "datasets/kosarak.csv",
-    ];
+fn print_usage() {
+    println!("Usage:");
+    println!("");
+    println!("arm input_csv_file_path output_csv_file_path min_support");
+    println!("");
+    println!("  input_csv_file_path: path to transaction data set in CSV format,");
+    println!("      one transaction per line.");
+    println!("  output_csv_file_path: path to file to write out frequent item sets.");
+    println!("      Itemsets written in CSV format.");
+    println!("  min_support: minimum support threshold. Floating point value in");
+    println!("      the range [0,1].");
+}
 
-    for file in files.iter().sorted() {
-        if let Err(err) = run(file, 0.001) {
-            println!("error running example: {}", err);
+fn parse_args() -> Result<(String, String, f64), String> {
+    let args: Vec<String> = env::args().collect();
+    if args.len() != 4 {
+        print_usage();
+        return Err(String::from("Invalid number of args."));
+    }
+
+    let path = Path::new(&args[1]);
+    if !path.exists() || !path.is_file() {
+        return Err(String::from("Input file doesn't exist or is not file."));
+    }
+    let path = Path::new(&args[2]);
+    if path.exists() {
+        return Err(String::from("Output file already exists; refusing to overwrite!"));
+    }
+
+    let min_support: f64 = match args[3].parse::<f64>() {
+        Ok(f) => f,
+        Err(e) => return Err(String::from("Failed to parse min_support: ") + &e.to_string())
+    };
+    if min_support < 0.0 || min_support > 1.0 {
+        return Err(String::from("Minimum support must be in range [0,1]"));
+    }
+
+    let input = args[1].clone();
+    let output = args[2].clone();
+    Ok((input, output, min_support))
+}
+
+fn main() {
+
+    let (input, output, min_support) = match parse_args() {
+        Ok(x) => x,
+        Err(e) => {
+            println!("Error: {}", e);
             process::exit(1);
-        }
+        },
+    };
+
+    if let Err(err) = mine_fp_growth(&input, &output, min_support) {
+        println!("Error: {}", err);
+        process::exit(1);
     }
 }
