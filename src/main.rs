@@ -1,16 +1,17 @@
 extern crate rayon;
 extern crate itertools;
 
-use std::error::Error;
-use std::io::prelude::*;
-use std::io::BufReader;
-use std::process;
-use std::fs::File;
-use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
-use std::cmp::Ordering;
 use itertools::Itertools;
+use itertools::sorted;
 use rayon::prelude::*;
+use std::cmp::Ordering;
+use std::collections::HashMap;
+use std::error::Error;
+use std::fs::File;
+use std::hash::{Hash, Hasher};
+use std::io::BufReader;
+use std::io::prelude::*;
+use std::process;
 
 
 struct TransactionReader<'a> {
