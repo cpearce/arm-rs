@@ -365,18 +365,19 @@ fn run(path: &str, min_support: f64) -> Result<(), Box<Error>> {
     }
 
     println!("Starting recursive FPGrowth...");
-
     let min_count = (min_support * (fptree.num_transactions() as f64)) as u32;
-    let patterns = fp_growth(&fptree, min_count, &vec![], &itemizer);
+    let patterns: Vec<Vec<u32>> = fp_growth(&fptree, min_count, &vec![], &itemizer);
 
+    // Convert frequent itemsets from a vector of item ids to
+    // vector of friendly string item names.
+    let item_id_to_string = |x: &u32| -> String { itemizer.str_of(*x) };
+    let u32_vec_to_string_vec = |v: &Vec<u32>| -> Vec<String> {
+        sorted(v.iter().map(&item_id_to_string))
+    };
 
-    println!("patterns: ({}) min_count={}", patterns.len(), min_count);
-    for itemset in patterns {
-        let mut pretty = vec![];
-        for x in itemset {
-            pretty.push(itemizer.str_of(x));
-        }
-        println!("{:?}", pretty);
+    // Output the itemsets.
+    for itemset in patterns.iter().map(u32_vec_to_string_vec) {
+        println!("{:?}", itemset);
     }
 
     Ok(())
