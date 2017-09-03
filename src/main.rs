@@ -5,6 +5,7 @@ mod index;
 mod itemizer;
 mod transaction_reader;
 mod fptree;
+mod generate_rules;
 
 use itemizer::Itemizer;
 use transaction_reader::TransactionReader;

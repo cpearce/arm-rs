@@ -30,4 +30,10 @@ impl Itemizer {
             _ => String::from("Unknown"),
         }
     }
+    pub fn to_id_vec(&mut self, vec_of_str: &[&str]) -> Vec<u32> {
+        vec_of_str.iter().map(|s| self.id_of(s)).collect()
+    }
+    pub fn to_str_vec(&self, vec_of_ids: &[u32]) -> Vec<String> {
+        vec_of_ids.iter().map(|&id| self.str_of(id)).collect()
+    }
 }
