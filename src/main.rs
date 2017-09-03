@@ -1,50 +1,24 @@
 extern crate rayon;
 extern crate itertools;
 
+mod index;
+mod itemizer;
+mod transaction_reader;
+
+use itemizer::Itemizer;
+use transaction_reader::TransactionReader;
 use itertools::sorted;
 use rayon::prelude::*;
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::env;
 use std::error::Error;
 use std::fs::File;
 use std::hash::{Hash, Hasher};
-use std::io::BufReader;
 use std::io::prelude::*;
 use std::path::Path;
 use std::process;
 use std::time::Instant;
-
-
-struct TransactionReader<'a> {
-    reader: BufReader<File>,
-    itemizer: &'a mut Itemizer,
-}
-
-impl<'a> TransactionReader<'a> {
-    fn new(path: &str, itemizer: &'a mut Itemizer) -> TransactionReader<'a> {
-        let file = File::open(path).unwrap();
-        let reader = BufReader::new(file);
-        TransactionReader{reader: reader, itemizer}
-    }
-}
-
-impl<'a> Iterator for TransactionReader<'a> {
-    type Item = Vec<u32>;
-    fn next(&mut self) -> Option<Vec<u32>> {
-        let mut line = String::new();
-        let len = self.reader.read_line(&mut line).unwrap();
-        if len == 0 {
-            return None;
-        }
-        Some(
-            line
-            .split(",")
-            .map(|s| self.itemizer.id_of(s.trim()))
-            .collect::<Vec<u32>>())
-    }
-}
 
 fn count_item_frequencies(reader: TransactionReader) -> Result<HashMap<u32, u32>, Box<Error>> {
     let mut item_count: HashMap<u32, u32> = HashMap::new();
@@ -56,91 +30,6 @@ fn count_item_frequencies(reader: TransactionReader) -> Result<HashMap<u32, u32>
     }
     Ok(item_count)
 }
-
-struct Index {
-    index: HashMap<u32, HashSet<usize>>,
-    transaction_count: usize,
-}
-
-impl Index {
-    fn new() -> Index {
-        Index{ index: HashMap::new(), transaction_count: 0 }
-    }
-    fn insert(&mut self, transaction: &Vec<u32>) {
-        let tid = self.transaction_count;
-        self.transaction_count += 1;
-        for &item_id in transaction {
-            self.index.entry(item_id).or_insert(HashSet::new()).insert(tid);
-        }
-    }
-    fn support(&self, transaction: &Vec<u32>) -> f64 {
-        if transaction.is_empty() {
-            return 0.0;
-        }
-
-        // Get the set of transaction id's containing the first item
-        // in the transaction...
-        let mut transaction_ids: HashSet<usize> = match self.index.get(&transaction[0]) {
-            Some(transaction_ids) => transaction_ids.clone(),
-            None => return 0.0,
-        };
-
-        // ... and intersect them with the all the sets of transaction ids
-        // for all the other items...
-        for tid in &transaction[1..] {
-            transaction_ids = match self.index.get(&tid) {
-                Some(other) => transaction_ids.intersection(&other).cloned().collect(),
-                None => return 0.0, // None of this item; so support is 0!
-            };
-        }
-        // ... and the support is the size of the set of transaction ids
-        // that contain all items.
-        (transaction_ids.len() as f64) / (self.transaction_count as f64)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn TestIndex() {
-        use super::Index;
-        use super::Itemizer;
-
-        let mut index = Index::new();
-        let transactions = vec![
-            vec!["a","b","c","d","e","f"],
-            vec!["g","h","i","j","k","l"],
-            vec!["z","x"],
-            vec!["z","x"],
-            vec!["z","x","y"],
-            vec!["z","x","y","i"]
-        ];
-        let mut itemizer: Itemizer = Itemizer::new();
-        for line in &transactions {
-            let transaction = line.iter().map(|s| itemizer.id_of(s.trim()))
-                                         .collect::<Vec<u32>>();
-            index.insert(&transaction);
-        }
-
-        assert!(index.support(&vec![itemizer.id_of("a")]) == 1.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("b")]) == 1.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("c")]) == 1.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("d")]) == 1.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("e")]) == 1.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("f")]) == 1.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("h")]) == 1.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("i")]) == 2.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("j")]) == 1.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("k")]) == 1.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("l")]) == 1.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("z")]) == 4.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("x")]) == 4.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("y")]) == 2.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("x"), itemizer.id_of("z")]) == 4.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("x"), itemizer.id_of("y"), itemizer.id_of("z")]) == 2.0 / 6.0);
-    }
-}
-
 
 #[derive(Eq, Debug)]
 struct FPNode {
@@ -260,39 +149,6 @@ impl FPTree {
             if let Some(node) = self.root.children.get(&item) {
                 node.print(itemizer, &self.item_count, 1);
             }
-        }
-    }
-}
-
-
-struct Itemizer {
-    next_item_id: u32,
-    item_str_to_id: HashMap<String, u32>,
-    item_id_to_str: HashMap<u32,String>,
-}
-
-impl Itemizer {
-    fn new() -> Itemizer {
-        Itemizer {
-            next_item_id: 1,
-            item_str_to_id: HashMap::new(),
-            item_id_to_str: HashMap::new(),
-        }
-    }
-    fn id_of(&mut self, item: &str) -> u32 {
-        if let Some(id) = self.item_str_to_id.get(item) {
-            return *id;
-        }
-        let id = self.next_item_id;
-        self.next_item_id += 1;
-        self.item_str_to_id.insert(String::from(item), id);
-        self.item_id_to_str.insert(id, String::from(item));
-        return id;
-    }
-    fn str_of(&self, id: u32) -> String {
-        match self.item_id_to_str.get(&id) {
-            Some(s) => s.clone(),
-            _ => String::from("Unknown"),
         }
     }
 }
