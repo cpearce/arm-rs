@@ -1,7 +1,6 @@
 use index::Index;
 use itemizer::Itemizer;
 use std::collections::HashSet;
-use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 
 

@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 use std::collections::HashMap;
-use itemizer::Itemizer;
 
 pub struct Index {
     index: HashMap<u32, HashSet<usize>>,
