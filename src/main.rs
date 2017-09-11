@@ -6,6 +6,7 @@ mod itemizer;
 mod transaction_reader;
 mod fptree;
 mod generate_rules;
+mod command_line_args;
 
 use itemizer::Itemizer;
 use transaction_reader::TransactionReader;
@@ -17,15 +18,16 @@ use generate_rules::confidence;
 use generate_rules::lift;
 use generate_rules::generate_rules;
 use index::Index;
+use command_line_args::Arguments;
+use command_line_args::parse_args_or_exit;
 
 use std::collections::HashMap;
-use std::env;
 use std::error::Error;
 use std::fs::File;
-use std::io::{self, Write};
+use std::io::Write;
 use std::process;
 use std::time::Instant;
-use argparse::{ArgumentParser, Store};
+
 
 fn count_item_frequencies(reader: TransactionReader) -> Result<HashMap<u32, u32>, Box<Error>> {
     let mut item_count: HashMap<u32, u32> = HashMap::new();
@@ -104,104 +106,6 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
     println!("Total runtime: {} seconds", start.elapsed().as_secs());
 
     Ok(())
-}
-
-pub struct Arguments {
-    input_file_path: String,
-    output_rules_path: String,
-    min_support: f64,
-    min_confidence: f64,
-    min_lift: f64,
-}
-
-fn parse_args_or_exit() -> Arguments {
-    let mut args: Arguments = Arguments {
-        input_file_path: String::new(),
-        output_rules_path: String::new(),
-        min_support: 0.0,
-        min_confidence: 0.0,
-        min_lift: 0.0,
-    };
-
-    {
-        let mut parser = ArgumentParser::new();
-        parser.set_description("Light weight parallel FPGrowth in Rust.");
-
-        parser
-            .refer(&mut args.input_file_path)
-            .add_option(&["--input"], Store, "Input dataset in CSV format.")
-            .metavar("file_path")
-            .required();
-
-        parser
-            .refer(&mut args.output_rules_path)
-            .add_option(
-                &["--output"],
-                Store,
-                "File path in which to store output rules. \
-                 Format: antecedent -> consequent, confidence, lift, support.",
-            )
-            .metavar("file_path")
-            .required();
-
-        parser
-            .refer(&mut args.min_support)
-            .add_option(
-                &["--min-support"],
-                Store,
-                "Minimum itemset support threshold, in range [0,1].",
-            )
-            .metavar("threshold")
-            .required();
-
-        parser
-            .refer(&mut args.min_confidence)
-            .add_option(
-                &["--min-confidence"],
-                Store,
-                "Minimum rule confidence threshold, in range [0,1].",
-            )
-            .metavar("threshold")
-            .required();
-
-        parser
-            .refer(&mut args.min_lift)
-            .add_option(
-                &["--min-lift"],
-                Store,
-                "Minimum rule lift confidence threshold, in range [1,∞].",
-            )
-            .metavar("threshold");
-
-        if env::args().count() == 1 {
-            parser.print_help("Usage:", &mut io::stderr()).unwrap();
-            process::exit(1);
-        }
-
-        match parser.parse_args() {
-            Ok(()) => {}
-            Err(err) => {
-                process::exit(err);
-            }
-        }
-    }
-
-    if args.min_support < 0.0 || args.min_support > 1.0 {
-        eprintln!("Minimum itemset support must be in range [0,1]");
-        process::exit(1);
-    }
-
-    if args.min_confidence < 0.0 || args.min_confidence > 1.0 {
-        eprintln!("Minimum rule confidence threshold must be in range [0,1]");
-        process::exit(1);
-    }
-
-    if args.min_lift < 1.0 {
-        eprintln!("Minimum lift must be in range [1,∞]");
-        process::exit(1);
-    }
-
-    args
 }
 
 fn main() {
