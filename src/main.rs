@@ -1,5 +1,5 @@
+extern crate argparse;
 extern crate rayon;
-extern crate itertools;
 
 mod index;
 mod itemizer;
@@ -18,15 +18,14 @@ use generate_rules::lift;
 use generate_rules::generate_rules;
 use index::Index;
 
-use itertools::sorted;
 use std::collections::HashMap;
 use std::env;
 use std::error::Error;
 use std::fs::File;
-use std::io::prelude::*;
-use std::path::Path;
+use std::io::{self, Write};
 use std::process;
 use std::time::Instant;
+use argparse::{ArgumentParser, Store};
 
 fn count_item_frequencies(reader: TransactionReader) -> Result<HashMap<u32, u32>, Box<Error>> {
     let mut item_count: HashMap<u32, u32> = HashMap::new();
@@ -37,29 +36,6 @@ fn count_item_frequencies(reader: TransactionReader) -> Result<HashMap<u32, u32>
         }
     }
     Ok(item_count)
-}
-
-pub struct Arguments {
-    input_file_path: String,
-    output_rules_path: String,
-    min_support: f64,
-    min_confidence: f64,
-    min_lift: f64,
-}
-
-impl Arguments {
-    fn new(input_file_path: String,
-        output_rules_path: String,
-        min_support: f64,
-        min_confidence: f64,
-        min_lift: f64) -> Arguments
-    {
-        Arguments{input_file_path: input_file_path,
-                output_rules_path: output_rules_path,
-                min_support: min_support,
-                min_confidence: min_confidence,
-                min_lift: min_lift}
-    }
 }
 
 fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
@@ -115,77 +91,84 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
     Ok(())
 }
 
-fn print_usage() {
-    println!("Usage:");
-    println!("");
-    println!("arm input_csv_file_path output_rules_csv_file_path min_support min_confidence min_lift");
-    println!("");
-    println!("  input_csv_file_path: path to transaction data set in CSV format,");
-    println!("      one transaction per line.");
-    println!("  output_rules_csv_file_path: path to file to write out rules.");
-    println!("      Format: antecedent -> consequent, confidence, lift, support");
-    println!("  min_support: minimum support threshold. Floating point value in");
-    println!("      the range [0,1].");
-    println!("  min_confidence: minimum confidence threshold. Floating point value in");
-    println!("      the range [0,1].");
-    println!("  min_lift: minimum lift threshold. Floating point value in");
-    println!("      the range [1,∞].");
+pub struct Arguments {
+    input_file_path: String,
+    output_rules_path: String,
+    min_support: f64,
+    min_confidence: f64,
+    min_lift: f64,
 }
 
-fn parse_args() -> Result<Arguments, String> {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 6 {
-        print_usage();
-        return Err(String::from("Invalid number of args."));
-    }
-
-    let path = Path::new(&args[1]);
-    if !path.exists() || !path.is_file() {
-        return Err(String::from("Input file doesn't exist or is not file."));
-    }
-    let path = Path::new(&args[2]);
-    if path.exists() {
-        return Err(String::from("Output rules file already exists; refusing to overwrite!"));
-    }
-
-    let min_support: f64 = match args[3].parse::<f64>() {
-        Ok(f) => f,
-        Err(e) => return Err(String::from("Failed to parse min_support: ") + &e.to_string())
+fn parse_args_or_exit() -> Arguments {
+    let mut args: Arguments = Arguments{
+        input_file_path: String::new(),
+        output_rules_path: String::new(),
+        min_support: 0.0,
+        min_confidence: 0.0,
+        min_lift: 0.0
     };
-    if min_support < 0.0 || min_support > 1.0 {
-        return Err(String::from("Minimum support must be in range [0,1]"));
+
+    {
+        let mut parser = ArgumentParser::new();
+        parser.set_description("Light weight parallel FPGrowth in Rust.");
+
+        parser.refer(&mut args.input_file_path)
+            .add_option(&["--input"], Store, "Input dataset in CSV format.")
+            .metavar("file_path")
+            .required();
+
+        parser.refer(&mut args.output_rules_path)
+            .add_option(&["--output"], Store, "File path in which to store output rules. Format: antecedent -> consequent, confidence, lift, support.")
+            .metavar("file_path")
+            .required();
+
+        parser.refer(&mut args.min_support)
+            .add_option(&["--min-support"], Store, "Minimum itemset support threshold, in range [0,1].")
+            .metavar("threshold")
+            .required();
+
+        parser.refer(&mut args.min_confidence)
+            .add_option(&["--min-confidence"], Store, "Minimum rule confidence threshold, in range [0,1].")
+            .metavar("threshold")
+            .required();
+
+        parser.refer(&mut args.min_lift)
+            .add_option(&["--min-lift"], Store, "Minimum rule lift confidence threshold, in range [1,∞].")
+            .metavar("threshold");
+
+        if env::args().count() == 1 {
+            parser.print_help("Usage:", &mut io::stderr()).unwrap();
+            process::exit(1);
+        }
+ 
+        match parser.parse_args() {
+            Ok(()) =>  {}
+            Err(err) => {
+                process::exit(err);
+            }
+        }
+    }    
+
+    if args.min_support < 0.0 || args.min_support > 1.0 {
+        eprintln!("Minimum itemset support must be in range [0,1]");
+        process::exit(1);
     }
 
-    let min_confidence: f64 = match args[4].parse::<f64>() {
-        Ok(f) => f,
-        Err(e) => return Err(String::from("Failed to parse min_confidence: ") + &e.to_string())
-    };
-    if min_confidence < 0.0 || min_confidence > 1.0 {
-        return Err(String::from("Minimum support must be in range [0,1]"));
+    if args.min_confidence < 0.0 || args.min_confidence > 1.0 {
+        eprintln!("Minimum rule confidence threshold must be in range [0,1]");
+        process::exit(1);
     }
 
-    let min_lift: f64 = match args[5].parse::<f64>() {
-        Ok(f) => f,
-        Err(e) => return Err(String::from("Failed to parse min_lift: ") + &e.to_string())
-    };
-    if min_lift < 1.0 {
-        return Err(String::from("Minimum lift must be in range [1,∞]"));
+    if args.min_lift < 1.0 {
+        eprintln!("Minimum lift must be in range [1,∞]");
+        process::exit(1);
     }
 
-    let input = args[1].clone();
-    let rules = args[2].clone();
-    Ok(Arguments::new(input, rules, min_support, min_confidence, min_lift))
+    args
 }
 
 fn main() {
-
-    let arguments = match parse_args() {
-        Ok(x) => x,
-        Err(e) => {
-            println!("Error: {}", e);
-            process::exit(1);
-        },
-    };
+    let arguments = parse_args_or_exit();
 
     if let Err(err) = mine_fp_growth(&arguments) {
         println!("Error: {}", err);

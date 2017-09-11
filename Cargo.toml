@@ -6,3 +6,4 @@ authors = ["Chris Pearce <chris@pearce.org.nz>"]
 [dependencies]
 rayon = "0.8.2"
 itertools = "0.6.1"
+argparse = "*"
