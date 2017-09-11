@@ -12,7 +12,10 @@ impl<'a> TransactionReader<'a> {
     pub fn new(path: &str, itemizer: &'a mut Itemizer) -> TransactionReader<'a> {
         let file = File::open(path).unwrap();
         let reader = BufReader::new(file);
-        TransactionReader{reader: reader, itemizer}
+        TransactionReader {
+            reader: reader,
+            itemizer,
+        }
     }
 }
 
@@ -25,10 +28,9 @@ impl<'a> Iterator for TransactionReader<'a> {
             return None;
         }
         Some(
-            line
-            .split(",")
-            .map(|s| self.itemizer.id_of(s.trim()))
-            .collect::<Vec<u32>>())
+            line.split(",")
+                .map(|s| self.itemizer.id_of(s.trim()))
+                .collect::<Vec<u32>>(),
+        )
     }
 }
-

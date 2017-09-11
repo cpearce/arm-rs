@@ -12,15 +12,14 @@ pub struct Rule {
 
 impl PartialEq for Rule {
     fn eq(&self, other: &Rule) -> bool {
-        self.antecedent == other.antecedent &&
-        self.consequent == other.consequent
+        self.antecedent == other.antecedent && self.consequent == other.consequent
     }
 }
 
 impl Hash for Rule {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        let antecedent_mask : u64 = 1 << 63;
-        let consequent_mask : u64 = 1 << 62;
+        let antecedent_mask: u64 = 1 << 63;
+        let consequent_mask: u64 = 1 << 62;
         for i in &self.antecedent {
             (*i as u64 | antecedent_mask).hash(state);
         }
@@ -32,14 +31,23 @@ impl Hash for Rule {
 
 impl Rule {
     pub fn new(antecedent: HashSet<u32>, consequent: HashSet<u32>) -> Rule {
-        Rule{antecedent: antecedent, consequent: consequent}
+        Rule {
+            antecedent: antecedent,
+            consequent: consequent,
+        }
     }
     fn is_valid(&self) -> bool {
         !self.antecedent.is_empty() && !self.consequent.is_empty()
     }
     pub fn to_string(&self, itemizer: &Itemizer) -> String {
-        let a: Vec<String> = self.antecedent.iter().map(|&id| itemizer.str_of(id)).collect();
-        let b: Vec<String> = self.consequent.iter().map(|&id| itemizer.str_of(id)).collect();
+        let a: Vec<String> = self.antecedent
+            .iter()
+            .map(|&id| itemizer.str_of(id))
+            .collect();
+        let b: Vec<String> = self.consequent
+            .iter()
+            .map(|&id| itemizer.str_of(id))
+            .collect();
         [a.join(","), " -> ".to_owned(), b.join(",")].join("")
     }
     pub fn merge(&self) -> Vec<u32> {
@@ -64,10 +72,12 @@ pub fn lift(rule: &Rule, index: &Index) -> f64 {
     index.support(&ac) / (index.support(&a) * index.support(&c))
 }
 
-pub fn generate_rules(itemsets: &Vec<Vec<u32>>,
-                      min_confidence: f64,
-                      min_lift: f64,
-                      index: &Index) -> Vec<Rule> {
+pub fn generate_rules(
+    itemsets: &Vec<Vec<u32>>,
+    min_confidence: f64,
+    min_lift: f64,
+    index: &Index,
+) -> Vec<Rule> {
     let mut rules: Vec<Rule> = vec![];
     for itemset in itemsets.iter().filter(|i| i.len() > 1) {
         let mut candidates: Vec<Rule> = vec![];
@@ -95,26 +105,33 @@ pub fn generate_rules(itemsets: &Vec<Vec<u32>>,
                 let candidate = &candidates[candidate_index];
                 for other_index in (candidate_index + 1)..candidates.len() {
                     let other = &candidates[other_index];
-                    let rule = Rule::new(&candidate.antecedent | &other.antecedent,
-                                         &candidate.consequent & &other.consequent);
+                    let rule = Rule::new(
+                        &candidate.antecedent | &other.antecedent,
+                        &candidate.consequent & &other.consequent,
+                    );
                     if rule.is_valid() && confidence(&rule, &index) >= min_confidence {
                         // println!("Adding rule {:?} to next_candidates", rule);
-                        next_candidates.insert(rule);                   
+                        next_candidates.insert(rule);
                     }
                 }
             }
             // Move the previous generation into the output set.
-            for r in candidates.into_iter().filter(|r| lift(&r, &index) >= min_lift) {
+            for r in candidates
+                .into_iter()
+                .filter(|r| lift(&r, &index) >= min_lift)
+            {
                 rules.push(r);
             }
             // rules.append(&mut candidates);
-            // assert!(candidates.is_empty()); 
+            // assert!(candidates.is_empty());
             // Copy the current generation into the candidates list, so that we
             // use it to calculate the next generation. Note we filter by minimum
             // lift threshold here too.
-            candidates = next_candidates.iter()
-                                        .filter(|r| lift(&r, &index) >= min_lift)
-                                        .cloned().collect();
+            candidates = next_candidates
+                .iter()
+                .filter(|r| lift(&r, &index) >= min_lift)
+                .cloned()
+                .collect();
             next_candidates.clear();
         }
     }
@@ -134,70 +151,72 @@ mod tests {
         // Load entire dataset into index.
         let mut index = Index::new();
         let transactions = vec![
-            vec!["a","b","c"],
-            vec!["d","b","c"],
-            vec!["a","b","e"],
-            vec!["f","g","c"],
-            vec!["d","g","e"],
-            vec!["f","b","c"],
-            vec!["f","b","c"],
-            vec!["a","b","e"],
-            vec!["a","b","c"],
-            vec!["a","b","e"],
-            vec!["a","b","e"],
+            vec!["a", "b", "c"],
+            vec!["d", "b", "c"],
+            vec!["a", "b", "e"],
+            vec!["f", "g", "c"],
+            vec!["d", "g", "e"],
+            vec!["f", "b", "c"],
+            vec!["f", "b", "c"],
+            vec!["a", "b", "e"],
+            vec!["a", "b", "c"],
+            vec!["a", "b", "e"],
+            vec!["a", "b", "e"],
         ];
         let mut itemizer: Itemizer = Itemizer::new();
         for line in &transactions {
-            let transaction = line.iter().map(|s| itemizer.id_of(s))
-                                         .collect::<Vec<u32>>();
+            let transaction = line.iter().map(|s| itemizer.id_of(s)).collect::<Vec<u32>>();
             index.insert(&transaction);
         }
 
 
 
-        // Frequent itemsets generated by HARM with 
+        // Frequent itemsets generated by HARM with
         //  -m fptree -minconf 0.05 -minlift 1 -minsup 0.05
         // (itemset, support)
         let itemsets = [
             vec!["a"],
-            vec!["a","b"],
+            vec!["a", "b"],
             vec!["b"],
             vec!["c"],
-            vec!["b","c"],
-            vec!["a","c"],
-            vec!["a","b","c"],
+            vec!["b", "c"],
+            vec!["a", "c"],
+            vec!["a", "b", "c"],
             vec!["d"],
-            vec!["b","d"],
-            vec!["c","d"],
-            vec!["b","c","d"],
-            vec!["d","e"],
+            vec!["b", "d"],
+            vec!["c", "d"],
+            vec!["b", "c", "d"],
+            vec!["d", "e"],
             vec!["e"],
-            vec!["b","e"],
-            vec!["a","e"],
-            vec!["a","b","e"],
+            vec!["b", "e"],
+            vec!["a", "e"],
+            vec!["a", "b", "e"],
             vec!["f"],
-            vec!["c","f"],
-            vec!["b","f"],
-            vec!["b","c","f"],
+            vec!["c", "f"],
+            vec!["b", "f"],
+            vec!["b", "c", "f"],
             vec!["g"],
-            vec!["c","g"],
-            vec!["d","g"],
-            vec!["d","e","g"],
-            vec!["e","g"],
-            vec!["f","g"],
-            vec!["c","f","g"],
-        ].iter().map(|s| itemizer.to_id_vec(s))
-                .collect::<Vec<Vec<u32>>>();
+            vec!["c", "g"],
+            vec!["d", "g"],
+            vec!["d", "e", "g"],
+            vec!["e", "g"],
+            vec!["f", "g"],
+            vec!["c", "f", "g"],
+        ].iter()
+            .map(|s| itemizer.to_id_vec(s))
+            .collect::<Vec<Vec<u32>>>();
 
         let rules = super::generate_rules(&itemsets, 0.05, 1.0, &index);
         println!("Rules generated: {:?}", &rules);
         println!("Generated {} rules", rules.len());
-        
+
         for rule in rules {
-            println!("{} confidence={} lift={}",
+            println!(
+                "{} confidence={} lift={}",
                 rule.to_string(&itemizer),
                 super::confidence(&rule, &index),
-                super::lift(&rule, &index));
+                super::lift(&rule, &index)
+            );
         }
 
         /*

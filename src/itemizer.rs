@@ -3,7 +3,7 @@ use std::collections::HashMap;
 pub struct Itemizer {
     next_item_id: u32,
     item_str_to_id: HashMap<String, u32>,
-    item_id_to_str: HashMap<u32,String>,
+    item_id_to_str: HashMap<u32, String>,
 }
 
 impl Itemizer {

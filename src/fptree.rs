@@ -37,7 +37,7 @@ impl FPNode {
             id: id,
             item: item,
             count: 0,
-            children: HashMap::new()
+            children: HashMap::new(),
         }
     }
 
@@ -55,7 +55,7 @@ impl FPNode {
 
         child.count += count;
         if transaction.len() > 1 {
-            new_nodes += child.insert(&transaction[1 ..], count, next_node_id + new_nodes);
+            new_nodes += child.insert(&transaction[1..], count, next_node_id + new_nodes);
         }
         new_nodes
     }
@@ -65,11 +65,10 @@ impl FPNode {
     }
 
     fn print(&self, itemizer: &Itemizer, item_count: &HashMap<u32, u32>, level: u32) {
-
         let mut items: Vec<u32> = self.children.keys().cloned().collect();
         sort_transaction(&mut items, item_count, SortOrder::Decreasing);
 
-        for _ in 0 .. level {
+        for _ in 0..level {
             print!("  ");
         }
         println!("{}:{}", itemizer.str_of(self.item), self.count);
@@ -82,7 +81,6 @@ impl FPNode {
 }
 
 impl FPTree {
-
     pub fn new() -> FPTree {
         let root_node = FPNode::new(0, 0);
         return FPTree {
@@ -129,13 +127,13 @@ impl FPTree {
 fn get_item_count(item: u32, item_count: &HashMap<u32, u32>) -> u32 {
     match item_count.get(&item) {
         Some(count) => *count,
-        None => 0
+        None => 0,
     }
 }
 
 pub enum SortOrder {
     Increasing,
-    Decreasing
+    Decreasing,
 }
 
 fn item_cmp(a: &u32, b: &u32, item_count: &HashMap<u32, u32>) -> Ordering {
@@ -147,16 +145,10 @@ fn item_cmp(a: &u32, b: &u32, item_count: &HashMap<u32, u32>) -> Ordering {
     a_count.cmp(&b_count)
 }
 
-pub fn sort_transaction(transaction: &mut [u32],
-                    item_count: &HashMap<u32, u32>,
-                    order: SortOrder) {
+pub fn sort_transaction(transaction: &mut [u32], item_count: &HashMap<u32, u32>, order: SortOrder) {
     match order {
-        SortOrder::Increasing => {
-            transaction.sort_by(|a,b| item_cmp(a, b, item_count))
-        },
-        SortOrder::Decreasing => {
-            transaction.sort_by(|a,b| item_cmp(b, a, item_count))
-        }
+        SortOrder::Increasing => transaction.sort_by(|a, b| item_cmp(a, b, item_count)),
+        SortOrder::Decreasing => transaction.sort_by(|a, b| item_cmp(b, a, item_count)),
     }
 }
 
@@ -174,8 +166,7 @@ fn make_parent_table<'a>(fptree: &'a FPTree) -> HashMap<&'a FPNode, &'a FPNode> 
     table
 }
 
-fn add_nodes_to_index<'a>(node: &'a FPNode,
-                          index: &mut HashMap<u32, Vec<&'a FPNode>>) {
+fn add_nodes_to_index<'a>(node: &'a FPNode, index: &mut HashMap<u32, Vec<&'a FPNode>>) {
     for child in node.children.values() {
         index.entry(child.item).or_insert(vec![]).push(&child);
         add_nodes_to_index(child, index)
@@ -188,9 +179,10 @@ fn make_item_index<'a>(fptree: &'a FPTree) -> HashMap<u32, Vec<&'a FPNode>> {
     index
 }
 
-fn path_from_root_to<'a>(node: &'a FPNode,
-                    parent_table: &HashMap<&'a FPNode, &'a FPNode>)
-                    -> Vec<u32> {
+fn path_from_root_to<'a>(
+    node: &'a FPNode,
+    parent_table: &HashMap<&'a FPNode, &'a FPNode>,
+) -> Vec<u32> {
     let mut path = vec![];
     let mut n = node;
     loop {
@@ -199,16 +191,20 @@ fn path_from_root_to<'a>(node: &'a FPNode,
                 path.push(parent.item);
                 n = parent;
                 continue;
-            },
-            _ => { break; }
+            }
+            _ => {
+                break;
+            }
         }
     }
     path.reverse();
     path
 }
 
-fn construct_conditional_tree<'a>(parent_table: &HashMap<&'a FPNode, &'a FPNode>,
-                                  item_list: &Vec<&'a FPNode>) -> FPTree {
+fn construct_conditional_tree<'a>(
+    parent_table: &HashMap<&'a FPNode, &'a FPNode>,
+    item_list: &Vec<&'a FPNode>,
+) -> FPTree {
     let mut conditional_tree = FPTree::new();
 
     for node in item_list {
@@ -218,9 +214,12 @@ fn construct_conditional_tree<'a>(parent_table: &HashMap<&'a FPNode, &'a FPNode>
     conditional_tree
 }
 
-pub fn fp_growth(fptree: &FPTree, min_count: u32, path: &[u32], itemizer: &Itemizer)
-    -> Vec<Vec<u32>>
-{
+pub fn fp_growth(
+    fptree: &FPTree,
+    min_count: u32,
+    path: &[u32],
+    itemizer: &Itemizer,
+) -> Vec<Vec<u32>> {
     let mut itemsets: Vec<Vec<u32>> = vec![];
 
     // Maps a node to its parent.
@@ -231,32 +230,32 @@ pub fn fp_growth(fptree: &FPTree, min_count: u32, path: &[u32], itemizer: &Itemi
 
     // Get list of items in the tree which are above the minimum support
     // threshold. Sort the list in increasing order of frequency.
-    let mut items: Vec<u32> =
-        item_index.keys()
-                  .map(|x| *x)
-                  .filter(|x|
-                      get_item_count(*x, fptree.item_count()) > min_count)
-                  .collect();
+    let mut items: Vec<u32> = item_index
+        .keys()
+        .map(|x| *x)
+        .filter(|x| get_item_count(*x, fptree.item_count()) > min_count)
+        .collect();
     sort_transaction(&mut items, fptree.item_count(), SortOrder::Increasing);
 
-    let x: Vec<Vec<u32>> = items.par_iter().flat_map(|item| -> Vec<Vec<u32>>{
-        // The path to here plus this item must be above the minimum
-        // support threshold.
-        let mut itemset: Vec<u32> = Vec::from(path);
-        itemset.push(*item);
+    let x: Vec<Vec<u32>> = items
+        .par_iter()
+        .flat_map(|item| -> Vec<Vec<u32>> {
+            // The path to here plus this item must be above the minimum
+            // support threshold.
+            let mut itemset: Vec<u32> = Vec::from(path);
+            itemset.push(*item);
 
-        let mut result:Vec<Vec<u32>> = Vec::new();
+            let mut result: Vec<Vec<u32>> = Vec::new();
 
-        if let Some(item_list) = item_index.get(item) {
-            let conditional_tree =
-                construct_conditional_tree(&parent_table,
-                                           item_list);
-            let mut y = fp_growth(&conditional_tree, min_count, &itemset, itemizer);
-            result.append(&mut y);
-        };
-        result.push(itemset);
-        result
-    }).collect::<Vec<Vec<u32>>>();
+            if let Some(item_list) = item_index.get(item) {
+                let conditional_tree = construct_conditional_tree(&parent_table, item_list);
+                let mut y = fp_growth(&conditional_tree, min_count, &itemset, itemizer);
+                result.append(&mut y);
+            };
+            result.push(itemset);
+            result
+        })
+        .collect::<Vec<Vec<u32>>>();
 
     itemsets.extend(x);
     itemsets

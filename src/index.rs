@@ -8,13 +8,19 @@ pub struct Index {
 
 impl Index {
     pub fn new() -> Index {
-        Index{ index: HashMap::new(), transaction_count: 0 }
+        Index {
+            index: HashMap::new(),
+            transaction_count: 0,
+        }
     }
     pub fn insert(&mut self, transaction: &Vec<u32>) {
         let tid = self.transaction_count;
         self.transaction_count += 1;
         for &item_id in transaction {
-            self.index.entry(item_id).or_insert(HashSet::new()).insert(tid);
+            self.index
+                .entry(item_id)
+                .or_insert(HashSet::new())
+                .insert(tid);
         }
     }
     pub fn support(&self, transaction: &Vec<u32>) -> f64 {
@@ -52,17 +58,18 @@ mod tests {
 
         let mut index = Index::new();
         let transactions = vec![
-            vec!["a","b","c","d","e","f"],
-            vec!["g","h","i","j","k","l"],
-            vec!["z","x"],
-            vec!["z","x"],
-            vec!["z","x","y"],
-            vec!["z","x","y","i"]
+            vec!["a", "b", "c", "d", "e", "f"],
+            vec!["g", "h", "i", "j", "k", "l"],
+            vec!["z", "x"],
+            vec!["z", "x"],
+            vec!["z", "x", "y"],
+            vec!["z", "x", "y", "i"],
         ];
         let mut itemizer: Itemizer = Itemizer::new();
         for line in &transactions {
-            let transaction = line.iter().map(|s| itemizer.id_of(s.trim()))
-                                         .collect::<Vec<u32>>();
+            let transaction = line.iter()
+                .map(|s| itemizer.id_of(s.trim()))
+                .collect::<Vec<u32>>();
             index.insert(&transaction);
         }
 
@@ -81,6 +88,12 @@ mod tests {
         assert!(index.support(&vec![itemizer.id_of("x")]) == 4.0 / 6.0);
         assert!(index.support(&vec![itemizer.id_of("y")]) == 2.0 / 6.0);
         assert!(index.support(&vec![itemizer.id_of("x"), itemizer.id_of("z")]) == 4.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("x"), itemizer.id_of("y"), itemizer.id_of("z")]) == 2.0 / 6.0);
+        assert!(
+            index.support(&vec![
+                itemizer.id_of("x"),
+                itemizer.id_of("y"),
+                itemizer.id_of("z"),
+            ]) == 2.0 / 6.0
+        );
     }
 }
