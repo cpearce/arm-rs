@@ -41,7 +41,6 @@ fn count_item_frequencies(reader: TransactionReader) -> Result<HashMap<u32, u32>
 
 pub struct Arguments {
     input_file_path: String,
-    output_itemsets_path: String,
     output_rules_path: String,
     min_support: f64,
     min_confidence: f64,
@@ -50,14 +49,12 @@ pub struct Arguments {
 
 impl Arguments {
     fn new(input_file_path: String,
-        output_itemsets_path: String,
         output_rules_path: String,
         min_support: f64,
         min_confidence: f64,
         min_lift: f64) -> Arguments
     {
         Arguments{input_file_path: input_file_path,
-                output_itemsets_path: output_itemsets_path,
                 output_rules_path: output_rules_path,
                 min_support: min_support,
                 min_confidence: min_confidence,
@@ -95,26 +92,7 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
     let timer = Instant::now();
     let min_count = (args.min_support * (fptree.num_transactions() as f64)) as u32;
     let patterns: Vec<Vec<u32>> = fp_growth(&fptree, min_count, &vec![], &itemizer);
-    println!("FPGrowth took {} seconds.", timer.elapsed().as_secs());
-
-    // Convert frequent itemsets from a vector of item ids to
-    // vector of friendly string item names.
-    let item_id_to_string = |x: &u32| -> String { itemizer.str_of(*x) };
-    let u32_vec_to_string_vec = |v: &Vec<u32>| -> Vec<String> {
-        sorted(v.iter().map(&item_id_to_string))
-    };
-
-    // Output the itemsets.
-    let timer = Instant::now();
-    {
-        println!("FPGrowth complete, generated {} frequent itemsets.", patterns.len());
-        println!("Writing frequent itemsets to output file...");
-        let mut output = File::create(&args.output_itemsets_path)?;
-        for itemset in patterns.iter().map(u32_vec_to_string_vec) {
-            writeln!(output, "{}", itemset.join(","))?;
-        }
-    }
-    println!("Writing frequent itemsets took {} seconds", timer.elapsed().as_secs());
+    println!("FPGrowth generated {} frequent itemsets in {} seconds.", patterns.len(), timer.elapsed().as_secs());
 
     println!("Generating rules...");
     let timer = Instant::now();
@@ -140,12 +118,10 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
 fn print_usage() {
     println!("Usage:");
     println!("");
-    println!("arm input_csv_file_path output_itemsets_csv_file_path output_rules_csv_file_path min_support min_confidence min_lift");
+    println!("arm input_csv_file_path output_rules_csv_file_path min_support min_confidence min_lift");
     println!("");
     println!("  input_csv_file_path: path to transaction data set in CSV format,");
     println!("      one transaction per line.");
-    println!("  output_itemsets_csv_file_path: path to file to write out frequent item sets.");
-    println!("      Itemsets written in CSV format.");
     println!("  output_rules_csv_file_path: path to file to write out rules.");
     println!("      Format: antecedent -> consequent, confidence, lift, support");
     println!("  min_support: minimum support threshold. Floating point value in");
@@ -158,7 +134,7 @@ fn print_usage() {
 
 fn parse_args() -> Result<Arguments, String> {
     let args: Vec<String> = env::args().collect();
-    if args.len() != 7 {
+    if args.len() != 6 {
         print_usage();
         return Err(String::from("Invalid number of args."));
     }
@@ -169,14 +145,10 @@ fn parse_args() -> Result<Arguments, String> {
     }
     let path = Path::new(&args[2]);
     if path.exists() {
-        return Err(String::from("Output itemsets file already exists; refusing to overwrite!"));
-    }
-    let path = Path::new(&args[3]);
-    if path.exists() {
         return Err(String::from("Output rules file already exists; refusing to overwrite!"));
     }
 
-    let min_support: f64 = match args[4].parse::<f64>() {
+    let min_support: f64 = match args[3].parse::<f64>() {
         Ok(f) => f,
         Err(e) => return Err(String::from("Failed to parse min_support: ") + &e.to_string())
     };
@@ -184,7 +156,7 @@ fn parse_args() -> Result<Arguments, String> {
         return Err(String::from("Minimum support must be in range [0,1]"));
     }
 
-    let min_confidence: f64 = match args[5].parse::<f64>() {
+    let min_confidence: f64 = match args[4].parse::<f64>() {
         Ok(f) => f,
         Err(e) => return Err(String::from("Failed to parse min_confidence: ") + &e.to_string())
     };
@@ -192,7 +164,7 @@ fn parse_args() -> Result<Arguments, String> {
         return Err(String::from("Minimum support must be in range [0,1]"));
     }
 
-    let min_lift: f64 = match args[6].parse::<f64>() {
+    let min_lift: f64 = match args[5].parse::<f64>() {
         Ok(f) => f,
         Err(e) => return Err(String::from("Failed to parse min_lift: ") + &e.to_string())
     };
@@ -201,9 +173,8 @@ fn parse_args() -> Result<Arguments, String> {
     }
 
     let input = args[1].clone();
-    let itemsets = args[2].clone();
-    let rules = args[3].clone();
-    Ok(Arguments::new(input, itemsets, rules, min_support, min_confidence, min_lift))
+    let rules = args[2].clone();
+    Ok(Arguments::new(input, rules, min_support, min_confidence, min_lift))
 }
 
 fn main() {
