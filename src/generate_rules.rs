@@ -98,7 +98,7 @@ pub fn generate_rules(
         // Subsequent generations are created by combining each rule with
         // every other, such that:
         //  - the antecedent is the intersection of both rules' antecedents, and
-        //  - the consequent is the unions of both rules' consequents.
+        //  - the consequent is the union of both rules' consequents.
         let mut next_candidates: HashSet<Rule> = HashSet::new();
         while !candidates.is_empty() {
             for candidate_index in 0..candidates.len() {
