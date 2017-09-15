@@ -106,8 +106,8 @@ pub fn generate_rules(
                 for other_index in (candidate_index + 1)..candidates.len() {
                     let other = &candidates[other_index];
                     let rule = Rule::new(
-                        &candidate.antecedent | &other.antecedent,
-                        &candidate.consequent & &other.consequent,
+                        &candidate.antecedent & &other.antecedent,
+                        &candidate.consequent | &other.consequent,
                     );
                     if rule.is_valid() && confidence(&rule, &index) >= min_confidence {
                         // println!("Adding rule {:?} to next_candidates", rule);
