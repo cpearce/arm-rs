@@ -91,10 +91,11 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
 
     {
         let mut output = File::create(&args.output_rules_path)?;
+        writeln!(output, "Antecedent->Consequent,Confidence,Lift,Support")?;
         for rule in rules {
             writeln!(
                 output,
-                "{}, {}, {}, {}",
+                "{},{},{},{}",
                 rule.to_string(&itemizer),
                 confidence(&rule, &index),
                 lift(&rule, &index),
