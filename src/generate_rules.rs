@@ -48,7 +48,7 @@ impl Rule {
             .iter()
             .map(|&id| itemizer.str_of(id))
             .collect();
-        [a.join(","), " -> ".to_owned(), b.join(",")].join("")
+        [a.join(","), "->".to_owned(), b.join(",")].join("")
     }
     pub fn merge(&self) -> Vec<u32> {
         (&self.antecedent | &self.consequent).into_iter().collect()
