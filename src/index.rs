@@ -33,14 +33,14 @@ impl Index {
             let item_index = transaction[0] as usize;
             return (self.index[item_index].len() as f64) / (self.transaction_count as f64);
         }
-      
+
         let mut tid_lists: Vec<&Vec<usize>> = vec![];
         for &item in transaction.iter() {
             let item_index = item as usize;
             tid_lists.push(&self.index[item_index]);
         }
 
-        let mut p : Vec<usize> = vec![0; tid_lists.len()]; 
+        let mut p: Vec<usize> = vec![0; tid_lists.len()];
 
         // For each tid in the transaction's first item's list of tids.
         let mut count = 0;
@@ -62,7 +62,7 @@ impl Index {
                 count += 1
             }
         }
-            
+
         (count as f64) / (self.transaction_count as f64)
     }
 }
@@ -105,7 +105,10 @@ mod tests {
         assert_eq!(index.support(&vec![itemizer.id_of("z")]), 4.0 / 6.0);
         assert_eq!(index.support(&vec![itemizer.id_of("x")]), 4.0 / 6.0);
         assert_eq!(index.support(&vec![itemizer.id_of("y")]), 2.0 / 6.0);
-        assert_eq!(index.support(&vec![itemizer.id_of("x"), itemizer.id_of("z")]), 4.0 / 6.0);
+        assert_eq!(
+            index.support(&vec![itemizer.id_of("x"), itemizer.id_of("z")]),
+            4.0 / 6.0
+        );
         assert!(
             index.support(&vec![
                 itemizer.id_of("x"),

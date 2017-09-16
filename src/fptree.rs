@@ -73,6 +73,7 @@ impl FPNode {
         self.item == 0
     }
 
+    #[allow(dead_code)]
     fn print(&self, itemizer: &Itemizer, item_count: &HashMap<u32, u32>, level: u32) {
         let mut indicies: Vec<usize> = (0..self.children.len()).collect();
         indicies.sort_by(|&a, &b| {
@@ -121,6 +122,7 @@ impl FPTree {
         &self.item_count
     }
 
+    #[allow(dead_code)]
     pub fn print(&self, itemizer: &Itemizer) {
         self.root.print(itemizer, &self.item_count, 0);
     }
