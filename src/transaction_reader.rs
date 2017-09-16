@@ -29,8 +29,8 @@ impl<'a> Iterator for TransactionReader<'a> {
                 return None;
             }
             let splits = line.split(",")
-                    .map(|s| self.itemizer.id_of(s.trim()))
-                    .collect::<Vec<u32>>();
+                .map(|s| self.itemizer.id_of(s.trim()))
+                .collect::<Vec<u32>>();
             if splits.len() > 0 {
                 return Some(splits);
             }
