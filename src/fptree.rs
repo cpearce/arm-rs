@@ -9,7 +9,7 @@ struct FPNode {
     id: u32,
     item: u32,
     count: u32,
-    children: HashMap<u32, FPNode>,
+    children: Vec<FPNode>,
 }
 
 impl PartialEq for FPNode {
@@ -37,7 +37,7 @@ impl FPNode {
             id: id,
             item: item,
             count: 0,
-            children: HashMap::new(),
+            children: Vec::with_capacity(1),
         }
     }
 
@@ -47,15 +47,24 @@ impl FPNode {
         }
 
         let item = transaction[0];
-        let mut new_nodes = 0;
-        let mut child = self.children.entry(item).or_insert_with(|| {
-            new_nodes += 1;
-            FPNode::new(next_node_id, item)
-        });
+        let mut new_nodes: u32 = 0;
 
-        child.count += count;
+        let index = match self.children
+            .iter()
+            .position(|ref child| child.item == item)
+        {
+            Some(index) => index,
+            None => {
+                self.children.push(FPNode::new(next_node_id, item));
+                new_nodes += 1;
+                self.children.len() - 1
+            }
+        };
+
+        self.children[index].count += count;
         if transaction.len() > 1 {
-            new_nodes += child.insert(&transaction[1..], count, next_node_id + new_nodes);
+            new_nodes +=
+                self.children[index].insert(&transaction[1..], count, next_node_id + new_nodes);
         }
         new_nodes
     }
@@ -65,17 +74,16 @@ impl FPNode {
     }
 
     fn print(&self, itemizer: &Itemizer, item_count: &HashMap<u32, u32>, level: u32) {
-        let mut items: Vec<u32> = self.children.keys().cloned().collect();
-        sort_transaction(&mut items, item_count, SortOrder::Decreasing);
-
+        let mut indicies: Vec<usize> = (0..self.children.len()).collect();
+        indicies.sort_by(|&a, &b| {
+            item_cmp(&self.children[b].item, &self.children[a].item, item_count)
+        });
         for _ in 0..level {
             print!("  ");
         }
         println!("{}:{}", itemizer.str_of(self.item), self.count);
-        for item in items {
-            if let Some(node) = self.children.get(&item) {
-                node.print(itemizer, item_count, level + 1);
-            }
+        for index in indicies {
+            self.children[index].print(itemizer, item_count, level + 1);
         }
     }
 }
@@ -114,13 +122,7 @@ impl FPTree {
     }
 
     pub fn print(&self, itemizer: &Itemizer) {
-        let mut items: Vec<u32> = self.root.children.keys().cloned().collect();
-        sort_transaction(&mut items, &self.item_count, SortOrder::Decreasing);
-        for item in items {
-            if let Some(node) = self.root.children.get(&item) {
-                node.print(itemizer, &self.item_count, 1);
-            }
-        }
+        self.root.print(itemizer, &self.item_count, 0);
     }
 }
 
@@ -153,7 +155,7 @@ pub fn sort_transaction(transaction: &mut [u32], item_count: &HashMap<u32, u32>,
 }
 
 fn add_parents_to_table<'a>(node: &'a FPNode, table: &mut HashMap<&'a FPNode, &'a FPNode>) {
-    for child in node.children.values() {
+    for ref child in node.children.iter() {
         assert!(!table.contains_key(child));
         table.insert(child, node);
         add_parents_to_table(child, table)
@@ -167,8 +169,8 @@ fn make_parent_table<'a>(fptree: &'a FPTree) -> HashMap<&'a FPNode, &'a FPNode> 
 }
 
 fn add_nodes_to_index<'a>(node: &'a FPNode, index: &mut HashMap<u32, Vec<&'a FPNode>>) {
-    for child in node.children.values() {
-        index.entry(child.item).or_insert(vec![]).push(&child);
+    for ref child in node.children.iter() {
+        index.entry(child.item).or_insert(vec![]).push(child);
         add_nodes_to_index(child, index)
     }
 }
