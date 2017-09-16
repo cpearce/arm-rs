@@ -31,6 +31,9 @@ impl Index {
 
         if transaction.len() == 1 {
             let item_index = transaction[0] as usize;
+            if item_index >= self.index.len() {
+                return 0.0;
+            }
             return (self.index[item_index].len() as f64) / (self.transaction_count as f64);
         }
 

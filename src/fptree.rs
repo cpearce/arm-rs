@@ -110,10 +110,6 @@ impl FPTree {
         self.num_transactions += count;
     }
 
-    pub fn num_transactions(&self) -> u32 {
-        self.num_transactions
-    }
-
     fn root(&self) -> &FPNode {
         &self.root
     }

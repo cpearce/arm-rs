@@ -27,15 +27,19 @@ use std::process;
 use std::time::Instant;
 
 
-fn count_item_frequencies(reader: TransactionReader) -> Result<HashMap<u32, u32>, Box<Error>> {
+fn count_item_frequencies(
+    reader: TransactionReader,
+) -> Result<(HashMap<u32, u32>, usize), Box<Error>> {
     let mut item_count: HashMap<u32, u32> = HashMap::new();
+    let mut num_transactions = 0;
     for transaction in reader {
+        num_transactions += 1;
         for item in transaction {
             let counter = item_count.entry(item).or_insert(0);
             *counter += 1;
         }
     }
-    Ok(item_count)
+    Ok((item_count, num_transactions))
 }
 
 fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
@@ -46,10 +50,14 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
     let start = Instant::now();
     let timer = Instant::now();
     let mut itemizer: Itemizer = Itemizer::new();
-    let item_count = count_item_frequencies(
+    let (item_count, num_transactions) = count_item_frequencies(
         TransactionReader::new(&args.input_file_path, &mut itemizer),
     ).unwrap();
-    println!("First pass took {} seconds.", timer.elapsed().as_secs());
+    println!(
+        "First pass took {} seconds, num_transactions={}.",
+        timer.elapsed().as_secs(),
+        num_transactions
+    );
 
     println!("Building initial FPTree based on item frequencies...");
 
@@ -58,10 +66,32 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
     let timer = Instant::now();
     let mut index = Index::new();
     let mut fptree = FPTree::new();
-    for mut transaction in TransactionReader::new(&args.input_file_path, &mut itemizer) {
-        sort_transaction(&mut transaction, &item_count, SortOrder::Decreasing);
-        fptree.insert(&transaction, 1);
-        index.insert(&transaction);
+    let min_count = (args.min_support * (num_transactions as f64)) as u32;
+    for transaction in TransactionReader::new(&args.input_file_path, &mut itemizer) {
+        // Strip out infrequent items from the transaction. This can
+        // drastically reduce the tree size, and speed up loading the
+        // initial tree.
+        let mut filtered_transaction: Vec<u32> = Vec::new();
+        for item in transaction {
+            if let Some(&count) = item_count.get(&item) {
+                if count > min_count {
+                    filtered_transaction.push(item);
+                }
+            }
+        }
+        // Note: we deliberately insert even if the transaction is empty to
+        // ensure the index increments its transaction count. Otherwise the
+        // support counts will be wrong in the rule generation phase.
+        index.insert(&filtered_transaction);
+        if filtered_transaction.is_empty() {
+            continue;
+        }
+        sort_transaction(
+            &mut filtered_transaction,
+            &item_count,
+            SortOrder::Decreasing,
+        );
+        fptree.insert(&filtered_transaction, 1);
     }
     println!(
         "Building initial FPTree took {} seconds.",
@@ -70,8 +100,6 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
 
     println!("Starting recursive FPGrowth...");
     let timer = Instant::now();
-    let min_count = (args.min_support * (fptree.num_transactions() as f64)) as u32;
-    println!("min_count={} num_transactions={}", min_count, fptree.num_transactions());
     let patterns: Vec<Vec<u32>> = fp_growth(&fptree, min_count, &vec![], &itemizer);
     println!(
         "FPGrowth generated {} frequent itemsets in {} seconds.",
@@ -90,8 +118,13 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
 
     {
         let mut output = File::create(&args.output_rules_path)?;
-        writeln!(output, "Antecedent => Consequent, Confidence, Lift, Support")?;
-        rules.sort_by(|ref a, ref b| a.to_string(&itemizer).cmp(&b.to_string(&itemizer)));
+        writeln!(
+            output,
+            "Antecedent => Consequent, Confidence, Lift, Support"
+        )?;
+        rules.sort_by(|ref a, ref b| {
+            a.to_string(&itemizer).cmp(&b.to_string(&itemizer))
+        });
         for rule in rules {
             writeln!(
                 output,
