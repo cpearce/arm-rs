@@ -86,12 +86,12 @@ impl Rule {
     }
 
     // Creates a new Rule with:
-    //  - the antecedent is the intersection of both rules' antecedents, and
-    //  - the consequent is the union of both rules' consequents,
+    //  - the antecedent is the union of both rules' antecedents, and
+    //  - the consequent is the intersection of both rules' consequents,
     // provided the new rule would be would be above the min_confidence threshold.
     fn merge(a: &Rule, b: &Rule, index: &Index, min_confidence: f64) -> Option<Rule> {
-        let antecedent = &a.antecedent & &b.antecedent;
-        let consequent = &a.consequent | &b.consequent;
+        let antecedent = &a.antecedent | &b.antecedent;
+        let consequent = &a.consequent & &b.consequent;
         Rule::make(antecedent, consequent, &index, min_confidence)
     }
 
