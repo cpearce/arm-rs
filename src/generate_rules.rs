@@ -45,7 +45,7 @@ impl Rule {
             .iter()
             .map(|&id| itemizer.str_of(id))
             .collect();
-        [a.join(","), "->".to_owned(), b.join(",")].join("")
+        [a.join(" "), " -> ".to_owned(), b.join(" ")].join("")
     }
 
     // Creates a new Rule from (antecedent,consequent) if the rule
