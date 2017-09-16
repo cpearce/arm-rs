@@ -23,14 +23,17 @@ impl<'a> Iterator for TransactionReader<'a> {
     type Item = Vec<u32>;
     fn next(&mut self) -> Option<Vec<u32>> {
         let mut line = String::new();
-        let len = self.reader.read_line(&mut line).unwrap();
-        if len == 0 {
-            return None;
+        loop {
+            let len = self.reader.read_line(&mut line).unwrap();
+            if len == 0 {
+                return None;
+            }
+            let splits = line.split(",")
+                    .map(|s| self.itemizer.id_of(s.trim()))
+                    .collect::<Vec<u32>>();
+            if splits.len() > 0 {
+                return Some(splits);
+            }
         }
-        Some(
-            line.split(",")
-                .map(|s| self.itemizer.id_of(s.trim()))
-                .collect::<Vec<u32>>(),
-        )
     }
 }
