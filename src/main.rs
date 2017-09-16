@@ -71,6 +71,7 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
     println!("Starting recursive FPGrowth...");
     let timer = Instant::now();
     let min_count = (args.min_support * (fptree.num_transactions() as f64)) as u32;
+    println!("min_count={} num_transactions={}", min_count, fptree.num_transactions());
     let patterns: Vec<Vec<u32>> = fp_growth(&fptree, min_count, &vec![], &itemizer);
     println!(
         "FPGrowth generated {} frequent itemsets in {} seconds.",
@@ -80,7 +81,7 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
 
     println!("Generating rules...");
     let timer = Instant::now();
-    let rules = generate_rules(&patterns, args.min_confidence, args.min_lift, &index);
+    let mut rules = generate_rules(&patterns, args.min_confidence, args.min_lift, &index);
     println!(
         "Generated {} rules in {} seconds.",
         rules.len(),
@@ -89,11 +90,12 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
 
     {
         let mut output = File::create(&args.output_rules_path)?;
-        writeln!(output, "Antecedent->Consequent,Confidence,Lift,Support")?;
+        writeln!(output, "Antecedent => Consequent, Confidence, Lift, Support")?;
+        rules.sort_by(|ref a, ref b| a.to_string(&itemizer).cmp(&b.to_string(&itemizer)));
         for rule in rules {
             writeln!(
                 output,
-                "{},{},{},{}",
+                "{}, {}, {}, {}",
                 rule.to_string(&itemizer),
                 rule.confidence(),
                 rule.lift(),

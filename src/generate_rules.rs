@@ -37,15 +37,17 @@ impl Hash for Rule {
 
 impl Rule {
     pub fn to_string(&self, itemizer: &Itemizer) -> String {
-        let a: Vec<String> = self.antecedent
+        let mut a: Vec<String> = self.antecedent
             .iter()
             .map(|&id| itemizer.str_of(id))
             .collect();
-        let b: Vec<String> = self.consequent
+        a.sort();
+        let mut b: Vec<String> = self.consequent
             .iter()
-            .map(|&id| itemizer.str_of(id))
+            .map(|&id| itemizer .str_of(id))
             .collect();
-        [a.join(" "), " -> ".to_owned(), b.join(" ")].join("")
+        b.sort();
+        [a.join(" "), " => ".to_owned(), b.join(" ")].join("")
     }
 
     // Creates a new Rule from (antecedent,consequent) if the rule
