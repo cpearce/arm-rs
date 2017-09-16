@@ -236,8 +236,8 @@ mod tests {
             println!(
                 "{} confidence={} lift={}",
                 rule.to_string(&itemizer),
-                super::confidence(&rule, &index),
-                super::lift(&rule, &index)
+                rule.confidence(),
+                rule.lift()
             );
         }
 

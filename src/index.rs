@@ -1,15 +1,15 @@
-use std::collections::HashSet;
-use std::collections::HashMap;
+#[cfg(test)]
+use itemizer::Itemizer;
 
 pub struct Index {
-    index: HashMap<u32, HashSet<usize>>,
+    index: Vec<Vec<usize>>,
     transaction_count: usize,
 }
 
 impl Index {
     pub fn new() -> Index {
         Index {
-            index: HashMap::new(),
+            index: Vec::new(),
             transaction_count: 0,
         }
     }
@@ -17,10 +17,11 @@ impl Index {
         let tid = self.transaction_count;
         self.transaction_count += 1;
         for &item_id in transaction {
-            self.index
-                .entry(item_id)
-                .or_insert(HashSet::new())
-                .insert(tid);
+            let item_index = item_id as usize;
+            while self.index.len() <= item_index {
+                self.index.push(vec![]);
+            }
+            self.index[item_index].push(tid);
         }
     }
     pub fn support(&self, transaction: &Vec<u32>) -> f64 {
@@ -28,24 +29,41 @@ impl Index {
             return 0.0;
         }
 
-        // Get the set of transaction id's containing the first item
-        // in the transaction...
-        let mut transaction_ids: HashSet<usize> = match self.index.get(&transaction[0]) {
-            Some(transaction_ids) => transaction_ids.clone(),
-            None => return 0.0,
-        };
-
-        // ... and intersect them with the all the sets of transaction ids
-        // for all the other items...
-        for tid in &transaction[1..] {
-            transaction_ids = match self.index.get(&tid) {
-                Some(other) => transaction_ids.intersection(&other).cloned().collect(),
-                None => return 0.0, // None of this item; so support is 0!
-            };
+        if transaction.len() == 1 {
+            let item_index = transaction[0] as usize;
+            return (self.index[item_index].len() as f64) / (self.transaction_count as f64);
         }
-        // ... and the support is the size of the set of transaction ids
-        // that contain all items.
-        (transaction_ids.len() as f64) / (self.transaction_count as f64)
+      
+        let mut tid_lists: Vec<&Vec<usize>> = vec![];
+        for &item in transaction.iter() {
+            let item_index = item as usize;
+            tid_lists.push(&self.index[item_index]);
+        }
+
+        let mut p : Vec<usize> = vec![0; tid_lists.len()]; 
+
+        // For each tid in the transaction's first item's list of tids.
+        let mut count = 0;
+        for &tid in tid_lists[0].iter() {
+            // Check whether all the other tid lists contain that tid.
+            let mut tid_in_all_item_tid_lists = true;
+            for i in 1..tid_lists.len() {
+                while p[i] < tid_lists[i].len() && tid_lists[i][p[i]] < tid {
+                    p[i] += 1;
+                }
+                if p[i] == tid_lists[i].len() || tid_lists[i][p[i]] != tid {
+                    // This tidlist doesn't include that tid. So this tid cannot
+                    // have all items in it.
+                    tid_in_all_item_tid_lists = false;
+                    break;
+                }
+            }
+            if tid_in_all_item_tid_lists {
+                count += 1
+            }
+        }
+            
+        (count as f64) / (self.transaction_count as f64)
     }
 }
 
@@ -73,21 +91,21 @@ mod tests {
             index.insert(&transaction);
         }
 
-        assert!(index.support(&vec![itemizer.id_of("a")]) == 1.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("b")]) == 1.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("c")]) == 1.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("d")]) == 1.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("e")]) == 1.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("f")]) == 1.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("h")]) == 1.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("i")]) == 2.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("j")]) == 1.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("k")]) == 1.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("l")]) == 1.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("z")]) == 4.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("x")]) == 4.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("y")]) == 2.0 / 6.0);
-        assert!(index.support(&vec![itemizer.id_of("x"), itemizer.id_of("z")]) == 4.0 / 6.0);
+        assert_eq!(index.support(&vec![itemizer.id_of("a")]), 1.0 / 6.0);
+        assert_eq!(index.support(&vec![itemizer.id_of("b")]), 1.0 / 6.0);
+        assert_eq!(index.support(&vec![itemizer.id_of("c")]), 1.0 / 6.0);
+        assert_eq!(index.support(&vec![itemizer.id_of("d")]), 1.0 / 6.0);
+        assert_eq!(index.support(&vec![itemizer.id_of("e")]), 1.0 / 6.0);
+        assert_eq!(index.support(&vec![itemizer.id_of("f")]), 1.0 / 6.0);
+        assert_eq!(index.support(&vec![itemizer.id_of("h")]), 1.0 / 6.0);
+        assert_eq!(index.support(&vec![itemizer.id_of("i")]), 2.0 / 6.0);
+        assert_eq!(index.support(&vec![itemizer.id_of("j")]), 1.0 / 6.0);
+        assert_eq!(index.support(&vec![itemizer.id_of("k")]), 1.0 / 6.0);
+        assert_eq!(index.support(&vec![itemizer.id_of("l")]), 1.0 / 6.0);
+        assert_eq!(index.support(&vec![itemizer.id_of("z")]), 4.0 / 6.0);
+        assert_eq!(index.support(&vec![itemizer.id_of("x")]), 4.0 / 6.0);
+        assert_eq!(index.support(&vec![itemizer.id_of("y")]), 2.0 / 6.0);
+        assert_eq!(index.support(&vec![itemizer.id_of("x"), itemizer.id_of("z")]), 4.0 / 6.0);
         assert!(
             index.support(&vec![
                 itemizer.id_of("x"),
