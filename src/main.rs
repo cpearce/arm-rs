@@ -14,8 +14,6 @@ use fptree::FPTree;
 use fptree::sort_transaction;
 use fptree::fp_growth;
 use fptree::SortOrder;
-use generate_rules::confidence;
-use generate_rules::lift;
 use generate_rules::generate_rules;
 use index::Index;
 use command_line_args::Arguments;
@@ -97,9 +95,9 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
                 output,
                 "{},{},{},{}",
                 rule.to_string(&itemizer),
-                confidence(&rule, &index),
-                lift(&rule, &index),
-                index.support(&rule.merge())
+                rule.confidence(),
+                rule.lift(),
+                rule.support()
             )?;
         }
     }

@@ -4,10 +4,13 @@ use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
 
-#[derive(Eq, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Rule {
     antecedent: HashSet<u32>,
     consequent: HashSet<u32>,
+    confidence: f64,
+    lift: f64,
+    support: f64,
 }
 
 impl PartialEq for Rule {
@@ -15,6 +18,9 @@ impl PartialEq for Rule {
         self.antecedent == other.antecedent && self.consequent == other.consequent
     }
 }
+
+// Can't derive Eq as f64 doesn't satisfy Eq.
+impl Eq for Rule {}
 
 impl Hash for Rule {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -30,15 +36,6 @@ impl Hash for Rule {
 }
 
 impl Rule {
-    pub fn new(antecedent: HashSet<u32>, consequent: HashSet<u32>) -> Rule {
-        Rule {
-            antecedent: antecedent,
-            consequent: consequent,
-        }
-    }
-    fn is_valid(&self) -> bool {
-        !self.antecedent.is_empty() && !self.consequent.is_empty()
-    }
     pub fn to_string(&self, itemizer: &Itemizer) -> String {
         let a: Vec<String> = self.antecedent
             .iter()
@@ -50,26 +47,63 @@ impl Rule {
             .collect();
         [a.join(","), "->".to_owned(), b.join(",")].join("")
     }
-    pub fn merge(&self) -> Vec<u32> {
-        (&self.antecedent | &self.consequent).into_iter().collect()
+
+    // Creates a new Rule from (antecedent,consequent) if the rule
+    // would be above the min_confidence threshold.
+    fn make(
+        antecedent: HashSet<u32>,
+        consequent: HashSet<u32>,
+        index: &Index,
+        min_confidence: f64,
+    ) -> Option<Rule> {
+        if antecedent.is_empty() || consequent.is_empty() {
+            return None;
+        }
+
+        // TODO: I can just pass the HashSet to index::support().
+        let ac_vec: Vec<u32> = (&antecedent | &consequent).into_iter().collect();
+        let a_vec: Vec<u32> = antecedent.iter().cloned().collect();
+        let ac_sup = index.support(&ac_vec);
+        let a_sup = index.support(&a_vec);
+        let confidence = ac_sup / a_sup;
+        if confidence < min_confidence {
+            return None;
+        }
+
+        let c_vec = consequent.iter().cloned().collect();
+        let c_sup = index.support(&c_vec);
+        let lift = ac_sup / (a_sup * c_sup);
+
+        Some(Rule {
+            antecedent: antecedent,
+            consequent: consequent,
+            confidence: confidence,
+            lift: lift,
+            support: ac_sup,
+        })
     }
-}
 
-pub fn confidence(rule: &Rule, index: &Index) -> f64 {
-    // Confidence of rule A->C defined as:
-    // P(AC) / P(C)
-    let ac: Vec<u32> = (&rule.antecedent | &rule.consequent).into_iter().collect();
-    let a: Vec<u32> = rule.antecedent.iter().cloned().collect();
-    index.support(&ac) / index.support(&a)
-}
+    // Creates a new Rule with:
+    //  - the antecedent is the intersection of both rules' antecedents, and
+    //  - the consequent is the union of both rules' consequents,
+    // provided the new rule would be would be above the min_confidence threshold.
+    fn merge(a: &Rule, b: &Rule, index: &Index, min_confidence: f64) -> Option<Rule> {
+        let antecedent = &a.antecedent & &b.antecedent;
+        let consequent = &a.consequent | &b.consequent;
+        Rule::make(antecedent, consequent, &index, min_confidence)
+    }
 
-pub fn lift(rule: &Rule, index: &Index) -> f64 {
-    // Lift of rule A->C defined as:
-    // P(AC) / (P(A) * P(B))
-    let a: Vec<u32> = rule.antecedent.iter().cloned().collect();
-    let c: Vec<u32> = rule.consequent.iter().cloned().collect();
-    let ac: Vec<u32> = (&rule.antecedent | &rule.consequent).into_iter().collect();
-    index.support(&ac) / (index.support(&a) * index.support(&c))
+    pub fn confidence(&self) -> f64 {
+        self.confidence
+    }
+
+    pub fn lift(&self) -> f64 {
+        self.lift
+    }
+
+    pub fn support(&self) -> f64 {
+        self.support
+    }
 }
 
 pub fn generate_rules(
@@ -86,40 +120,28 @@ pub fn generate_rules(
         for &item in itemset {
             let antecedent: HashSet<u32> = [item].iter().cloned().collect();
             let consequent: HashSet<u32> = items.difference(&antecedent).cloned().collect();
-            let rule = Rule::new(antecedent.clone(), consequent.clone());
-            // println!("Item={} items={:?} antecedent={:?} consequent={:?} conf={}",
-            //     item, items, antecedent, consequent, confidence(&rule, &index));
-            assert!(rule.is_valid());
-            if confidence(&rule, &index) >= min_confidence {
+            if let Some(rule) = Rule::make(antecedent, consequent, &index, min_confidence) {
                 candidates.push(rule);
             }
         }
 
-        // Subsequent generations are created by combining each rule with
-        // every other, such that:
-        //  - the antecedent is the intersection of both rules' antecedents, and
-        //  - the consequent is the union of both rules' consequents.
+        // Subsequent generations are created by merging with each other rule.
         let mut next_candidates: HashSet<Rule> = HashSet::new();
         while !candidates.is_empty() {
             for candidate_index in 0..candidates.len() {
-                let candidate = &candidates[candidate_index];
                 for other_index in (candidate_index + 1)..candidates.len() {
-                    let other = &candidates[other_index];
-                    let rule = Rule::new(
-                        &candidate.antecedent & &other.antecedent,
-                        &candidate.consequent | &other.consequent,
-                    );
-                    if rule.is_valid() && confidence(&rule, &index) >= min_confidence {
-                        // println!("Adding rule {:?} to next_candidates", rule);
+                    if let Some(rule) = Rule::merge(
+                        &candidates[candidate_index],
+                        &candidates[other_index],
+                        &index,
+                        min_confidence,
+                    ) {
                         next_candidates.insert(rule);
                     }
                 }
             }
             // Move the previous generation into the output set.
-            for r in candidates
-                .into_iter()
-                .filter(|r| lift(&r, &index) >= min_lift)
-            {
+            for r in candidates.into_iter().filter(|r| r.lift >= min_lift) {
                 rules.push(r);
             }
             // rules.append(&mut candidates);
@@ -129,7 +151,7 @@ pub fn generate_rules(
             // lift threshold here too.
             candidates = next_candidates
                 .iter()
-                .filter(|r| lift(&r, &index) >= min_lift)
+                .filter(|r| r.lift >= min_lift)
                 .cloned()
                 .collect();
             next_candidates.clear();
