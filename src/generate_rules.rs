@@ -1,13 +1,11 @@
 use index::Index;
 use itemizer::Itemizer;
-use std::collections::HashSet;
-use std::hash::{Hash, Hasher};
-
+use itertools::Itertools;
 
 #[derive(Clone, Debug)]
 pub struct Rule {
-    antecedent: HashSet<u32>,
-    consequent: HashSet<u32>,
+    antecedent: Vec<u32>,
+    consequent: Vec<u32>,
     confidence: f64,
     lift: f64,
     support: f64,
@@ -19,19 +17,52 @@ impl PartialEq for Rule {
     }
 }
 
-// Can't derive Eq as f64 doesn't satisfy Eq.
-impl Eq for Rule {}
+fn union(a: &Vec<u32>, b: &Vec<u32>) -> Vec<u32> {
+    let mut c: Vec<u32> = Vec::new();
+    for &i in a.iter() {
+        c.push(i);
+    }
+    for &i in b.iter() {
+        if !c.contains(&i) {
+            c.push(i);
+        }
+    }
+    c.sort();
+    c
+}
 
-impl Hash for Rule {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        let antecedent_mask: u64 = 1 << 63;
-        let consequent_mask: u64 = 1 << 62;
-        for i in &self.antecedent {
-            (*i as u64 | antecedent_mask).hash(state);
+fn intersection(a: &Vec<u32>, b: &Vec<u32>) -> Vec<u32> {
+    let mut c: Vec<u32> = Vec::new();
+    for &i in a.iter() {
+        if b.contains(&i) {
+            c.push(i);
         }
-        for i in &self.consequent {
-            (*i as u64 | consequent_mask).hash(state);
-        }
+    }
+    c.sort();
+    c
+}
+
+// If all items in the itemset convert to an integer, order by that integer,
+// otherwise order lexicographically.
+fn ensure_sorted(a: &mut Vec<String>) {
+    let all_items_convert_to_ints = a.iter().all(|ref x| match x.parse::<u32>() {
+        Ok(_) => true,
+        Err(_) => false,
+    });
+    if all_items_convert_to_ints {
+        a.sort_by(|ref x, ref y| {
+            let _x = match x.parse::<u32>() {
+                Ok(i) => i,
+                Err(_) => 0,
+            };
+            let _y = match y.parse::<u32>() {
+                Ok(i) => i,
+                Err(_) => 0,
+            };
+            _x.cmp(&_y)
+        });
+    } else {
+        a.sort();
     }
 }
 
@@ -41,20 +72,20 @@ impl Rule {
             .iter()
             .map(|&id| itemizer.str_of(id))
             .collect();
-        a.sort();
+        ensure_sorted(&mut a);
         let mut b: Vec<String> = self.consequent
             .iter()
-            .map(|&id| itemizer .str_of(id))
+            .map(|&id| itemizer.str_of(id))
             .collect();
-        b.sort();
-        [a.join(" "), " => ".to_owned(), b.join(" ")].join("")
+        ensure_sorted(&mut b);
+        [a.join(" "), " ==> ".to_owned(), b.join(" ")].join("")
     }
 
     // Creates a new Rule from (antecedent,consequent) if the rule
     // would be above the min_confidence threshold.
     fn make(
-        antecedent: HashSet<u32>,
-        consequent: HashSet<u32>,
+        antecedent: Vec<u32>,
+        consequent: Vec<u32>,
         index: &Index,
         min_confidence: f64,
     ) -> Option<Rule> {
@@ -62,23 +93,22 @@ impl Rule {
             return None;
         }
 
-        // TODO: I can just pass the HashSet to index::support().
-        let ac_vec: Vec<u32> = (&antecedent | &consequent).into_iter().collect();
-        let a_vec: Vec<u32> = antecedent.iter().cloned().collect();
+        let ac_vec: Vec<u32> = union(&antecedent, &consequent);
         let ac_sup = index.support(&ac_vec);
-        let a_sup = index.support(&a_vec);
+        let a_sup = index.support(&antecedent);
         let confidence = ac_sup / a_sup;
         if confidence < min_confidence {
             return None;
         }
 
-        let c_vec = consequent.iter().cloned().collect();
-        let c_sup = index.support(&c_vec);
+        let c_sup = index.support(&consequent);
         let lift = ac_sup / (a_sup * c_sup);
 
+        // Note: We sort the antecedent and consequent so that equality
+        // tests are consistent.
         Some(Rule {
-            antecedent: antecedent,
-            consequent: consequent,
+            antecedent: antecedent.iter().cloned().sorted(),
+            consequent: consequent.iter().cloned().sorted(),
             confidence: confidence,
             lift: lift,
             support: ac_sup,
@@ -90,8 +120,8 @@ impl Rule {
     //  - the consequent is the intersection of both rules' consequents,
     // provided the new rule would be would be above the min_confidence threshold.
     fn merge(a: &Rule, b: &Rule, index: &Index, min_confidence: f64) -> Option<Rule> {
-        let antecedent = &a.antecedent | &b.antecedent;
-        let consequent = &a.consequent & &b.consequent;
+        let antecedent = union(&a.antecedent, &b.antecedent);
+        let consequent = intersection(&a.consequent, &b.consequent);
         Rule::make(antecedent, consequent, &index, min_confidence)
     }
 
@@ -114,40 +144,41 @@ pub fn generate_rules(
     min_lift: f64,
     index: &Index,
 ) -> Vec<Rule> {
-    let mut rules: Vec<Rule> = vec![];
+    let mut rules: Vec<Rule> = Vec::new();
     for itemset in itemsets.iter().filter(|i| i.len() > 1) {
-        let mut candidates: Vec<Rule> = vec![];
+        let mut candidates: Vec<Rule> = Vec::new();
         // First level candidates are all the rules with consequents of size 1.
-        let items: HashSet<u32> = itemset.iter().cloned().collect();
         for &item in itemset {
-            let antecedent: HashSet<u32> = [item].iter().cloned().collect();
-            let consequent: HashSet<u32> = items.difference(&antecedent).cloned().collect();
+            let antecedent: Vec<u32> = vec![item];
+            let consequent: Vec<u32> = itemset.iter().filter(|&&x| x != item).cloned().collect();
             if let Some(rule) = Rule::make(antecedent, consequent, &index, min_confidence) {
                 candidates.push(rule);
             }
         }
 
         // Subsequent generations are created by merging with each other rule.
-        let mut next_candidates: HashSet<Rule> = HashSet::new();
+        let mut next_candidates: Vec<Rule> = Vec::new();
         while !candidates.is_empty() {
-            for candidate_index in 0..candidates.len() {
-                for other_index in (candidate_index + 1)..candidates.len() {
-                    if let Some(rule) = Rule::merge(
-                        &candidates[candidate_index],
-                        &candidates[other_index],
-                        &index,
-                        min_confidence,
-                    ) {
-                        next_candidates.insert(rule);
+            for (candidate, other) in candidates.iter().tuple_combinations() {
+                // Try combining all pairs of the last generation's candidates
+                // together. If the new rule is below the minimum confidence
+                // threshold, the merge will fail, and we'll not keep the new
+                // rule.
+                if let Some(rule) = Rule::merge(&candidate, &other, &index, min_confidence) {
+                    if !next_candidates.contains(&rule) {
+                        next_candidates.push(rule);
                     }
                 }
             }
-            // Move the previous generation into the output set.
+
+            // Move the previous generation into the output set, provided the lift
+            // constraint is satisfied.
             for r in candidates.into_iter().filter(|r| r.lift >= min_lift) {
-                rules.push(r);
+                if !rules.contains(&r) {
+                    rules.push(r);
+                }
             }
-            // rules.append(&mut candidates);
-            // assert!(candidates.is_empty());
+
             // Copy the current generation into the candidates list, so that we
             // use it to calculate the next generation. Note we filter by minimum
             // lift threshold here too.
@@ -156,6 +187,7 @@ pub fn generate_rules(
                 .filter(|r| r.lift >= min_lift)
                 .cloned()
                 .collect();
+
             next_candidates.clear();
         }
     }
@@ -169,6 +201,7 @@ mod tests {
     fn test_index() {
         use super::Index;
         use super::Itemizer;
+        use std::collections::HashMap;
 
         // HARM's census2.csv test dataset.
 
@@ -193,25 +226,10 @@ mod tests {
             index.insert(&transaction);
         }
 
-
-
         // Frequent itemsets generated by HARM with
         //  -m fptree -minconf 0.05 -minlift 1 -minsup 0.05
         // (itemset, support)
         let itemsets = [
-            vec!["a"],
-            vec!["a", "b"],
-            vec!["b"],
-            vec!["c"],
-            vec!["b", "c"],
-            vec!["a", "c"],
-            vec!["a", "b", "c"],
-            vec!["d"],
-            vec!["b", "d"],
-            vec!["c", "d"],
-            vec!["b", "c", "d"],
-            vec!["d", "e"],
-            vec!["e"],
             vec!["b", "e"],
             vec!["a", "e"],
             vec!["a", "b", "e"],
@@ -220,75 +238,91 @@ mod tests {
             vec!["b", "f"],
             vec!["b", "c", "f"],
             vec!["g"],
+            vec!["a"],
+            vec!["a", "b"],
+            vec!["b"],
+            vec!["c"],
+            vec!["b", "c"],
             vec!["c", "g"],
             vec!["d", "g"],
             vec!["d", "e", "g"],
             vec!["e", "g"],
             vec!["f", "g"],
             vec!["c", "f", "g"],
+            vec!["a", "c"],
+            vec!["a", "b", "c"],
+            vec!["d"],
+            vec!["b", "d"],
+            vec!["c", "d"],
+            vec!["b", "c", "d"],
+            vec!["d", "e"],
+            vec!["e"],
         ].iter()
             .map(|s| itemizer.to_id_vec(s))
             .collect::<Vec<Vec<u32>>>();
 
         let rules = super::generate_rules(&itemsets, 0.05, 1.0, &index);
-        println!("Rules generated: {:?}", &rules);
-        println!("Generated {} rules", rules.len());
 
-        for rule in rules {
-            println!(
-                "{} confidence={} lift={}",
-                rule.to_string(&itemizer),
-                rule.confidence(),
-                rule.lift()
-            );
+        let mut expected_rules: HashMap<&str, u32> = [
+            ("a ==> b", 0),
+            ("a ==> b e", 0),
+            ("a ==> e", 0),
+            ("a b ==> e", 0),
+            ("a c ==> b", 0),
+            ("a e ==> b", 0),
+            ("b ==> a", 0),
+            ("b ==> a c", 0),
+            ("b ==> a e", 0),
+            ("b ==> c", 0),
+            ("b ==> c d", 0),
+            ("b c ==> d", 0),
+            ("b c ==> f", 0),
+            ("b d ==> c", 0),
+            ("b e ==> a", 0),
+            ("b f ==> c", 0),
+            ("c ==> b", 0),
+            ("c ==> b d", 0),
+            ("c ==> b f", 0),
+            ("c ==> f", 0),
+            ("c ==> f g", 0),
+            ("c d ==> b", 0),
+            ("c f ==> g", 0),
+            ("c g ==> f", 0),
+            ("d ==> b c", 0),
+            ("d ==> e", 0),
+            ("d ==> e g", 0),
+            ("d ==> g", 0),
+            ("d e ==> g", 0),
+            ("d g ==> e", 0),
+            ("e ==> a", 0),
+            ("e ==> a b", 0),
+            ("e ==> d", 0),
+            ("e ==> d g", 0),
+            ("e ==> g", 0),
+            ("e g ==> d", 0),
+            ("f ==> b c", 0),
+            ("f ==> c", 0),
+            ("f ==> c g", 0),
+            ("f ==> g", 0),
+            ("f g ==> c", 0),
+            ("g ==> c f", 0),
+            ("g ==> d", 0),
+            ("g ==> d e", 0),
+            ("g ==> e", 0),
+            ("g ==> f", 0),
+        ].iter()
+            .cloned()
+            .collect();
+
+        for rule_str in rules.iter().map(|r| r.to_string(&itemizer)) {
+            assert_eq!(expected_rules.contains_key::<str>(&rule_str), true);
+            if let Some(count) = expected_rules.get_mut::<str>(&rule_str) {
+                *count += 1;
+            }
         }
 
-        /*
-a, -> e, conf=0.6666666666666667 lift=1.4666666666666668 support=0.36363636363636365
-a, -> b, conf=1.0 lift=1.222222222222222 support=0.5454545454545454
-a,b, -> e, conf=0.6666666666666667 lift=1.4666666666666668 support=0.36363636363636365
-a,c, -> b, conf=1.0 lift=1.222222222222222 support=0.18181818181818182
-a,e, -> b, conf=1.0 lift=1.222222222222222 support=0.36363636363636365
-b, -> c,d, conf=0.1111111111111111 lift=1.222222222222222 support=0.09090909090909091
-b, -> a,e, conf=0.4444444444444444 lift=1.222222222222222 support=0.36363636363636365
-b, -> a, conf=0.6666666666666666 lift=1.2222222222222223 support=0.5454545454545454
-b, -> c, conf=0.5555555555555555 lift=1.0185185185185184 support=0.45454545454545453
-b, -> a,c, conf=0.2222222222222222 lift=1.222222222222222 support=0.18181818181818182
-b,c, -> d, conf=0.2 lift=1.1 support=0.09090909090909091
-b,c, -> f, conf=0.4 lift=1.4666666666666668 support=0.18181818181818182
-b,d, -> c, conf=1.0 lift=1.8333333333333335 support=0.09090909090909091
-b,e, -> a, conf=1.0 lift=1.8333333333333335 support=0.36363636363636365
-b,f, -> c, conf=1.0 lift=1.8333333333333335 support=0.18181818181818182
-c, -> b,d, conf=0.16666666666666669 lift=1.8333333333333335 support=0.09090909090909091
-c, -> f,g, conf=0.16666666666666669 lift=1.8333333333333335 support=0.09090909090909091
-c, -> f, conf=0.5 lift=1.8333333333333335 support=0.2727272727272727
-c, -> b,f, conf=0.33333333333333337 lift=1.8333333333333335 support=0.18181818181818182
-c, -> b, conf=0.8333333333333334 lift=1.0185185185185186 support=0.45454545454545453
-c,d, -> b, conf=1.0 lift=1.222222222222222 support=0.09090909090909091
-c,f, -> g, conf=0.33333333333333337 lift=1.8333333333333335 support=0.09090909090909091
-c,g, -> f, conf=1.0 lift=3.666666666666667 support=0.09090909090909091
-d, -> b,c, conf=0.5 lift=1.1 support=0.09090909090909091
-d, -> e, conf=0.5 lift=1.1 support=0.09090909090909091
-d, -> g, conf=0.5 lift=2.75 support=0.09090909090909091
-d, -> e,g, conf=0.5 lift=5.5 support=0.09090909090909091
-d,e, -> g, conf=1.0 lift=5.5 support=0.09090909090909091
-d,g, -> e, conf=1.0 lift=2.2 support=0.09090909090909091
-e, -> d, conf=0.2 lift=1.1 support=0.09090909090909091
-e, -> g, conf=0.2 lift=1.1 support=0.09090909090909091
-e, -> d,g, conf=0.2 lift=2.2 support=0.09090909090909091
-e, -> a,b, conf=0.8 lift=1.4666666666666668 support=0.36363636363636365
-e, -> a, conf=0.8 lift=1.4666666666666668 support=0.36363636363636365
-e,g, -> d, conf=1.0 lift=5.5 support=0.09090909090909091
-f, -> g, conf=0.33333333333333337 lift=1.8333333333333335 support=0.09090909090909091
-f, -> c,g, conf=0.33333333333333337 lift=3.666666666666667 support=0.09090909090909091
-f, -> c, conf=1.0 lift=1.8333333333333335 support=0.2727272727272727
-f, -> b,c, conf=0.6666666666666667 lift=1.4666666666666668 support=0.18181818181818182
-f,g, -> c, conf=1.0 lift=1.8333333333333335 support=0.09090909090909091
-g, -> e, conf=0.5 lift=1.1 support=0.09090909090909091
-g, -> d, conf=0.5 lift=2.75 support=0.09090909090909091
-g, -> d,e, conf=0.5 lift=5.5 support=0.09090909090909091
-g, -> f, conf=0.5 lift=1.8333333333333335 support=0.09090909090909091
-g, -> c,f, conf=0.5 lift=1.8333333333333335 support=0.09090909090909091
-        */
+        for count in expected_rules.values() {
+            assert_eq!(*count, 1);
+        }
     }
 }
