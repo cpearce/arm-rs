@@ -1,14 +1,16 @@
 use index::Index;
 use itemizer::Itemizer;
 use itertools::Itertools;
+use ordered_float::OrderedFloat;
+use std::collections::HashSet;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Hash, Eq, Debug)]
 pub struct Rule {
     antecedent: Vec<u32>,
     consequent: Vec<u32>,
-    confidence: f64,
-    lift: f64,
-    support: f64,
+    confidence: OrderedFloat<f64>,
+    lift: OrderedFloat<f64>,
+    support: OrderedFloat<f64>,
 }
 
 impl PartialEq for Rule {
@@ -109,9 +111,9 @@ impl Rule {
         Some(Rule {
             antecedent: antecedent.iter().cloned().sorted(),
             consequent: consequent.iter().cloned().sorted(),
-            confidence: confidence,
-            lift: lift,
-            support: ac_sup,
+            confidence: OrderedFloat::from(confidence),
+            lift: OrderedFloat::from(lift),
+            support: OrderedFloat::from(ac_sup),
         })
     }
 
@@ -126,15 +128,15 @@ impl Rule {
     }
 
     pub fn confidence(&self) -> f64 {
-        self.confidence
+        self.confidence.into()
     }
 
     pub fn lift(&self) -> f64 {
-        self.lift
+        self.lift.into()
     }
 
     pub fn support(&self) -> f64 {
-        self.support
+        self.support.into()
     }
 }
 
@@ -143,21 +145,21 @@ pub fn generate_rules(
     min_confidence: f64,
     min_lift: f64,
     index: &Index,
-) -> Vec<Rule> {
-    let mut rules: Vec<Rule> = Vec::new();
+) -> HashSet<Rule> {
+    let mut rules: HashSet<Rule> = HashSet::new();
     for itemset in itemsets.iter().filter(|i| i.len() > 1) {
-        let mut candidates: Vec<Rule> = Vec::new();
+        let mut candidates: HashSet<Rule> = HashSet::new();
         // First level candidates are all the rules with consequents of size 1.
         for &item in itemset {
             let antecedent: Vec<u32> = vec![item];
             let consequent: Vec<u32> = itemset.iter().filter(|&&x| x != item).cloned().collect();
             if let Some(rule) = Rule::make(antecedent, consequent, &index, min_confidence) {
-                candidates.push(rule);
+                candidates.insert(rule);
             }
         }
 
         // Subsequent generations are created by merging with each other rule.
-        let mut next_candidates: Vec<Rule> = Vec::new();
+        let mut next_candidates: HashSet<Rule> = HashSet::new();
         while !candidates.is_empty() {
             for (candidate, other) in candidates.iter().tuple_combinations() {
                 // Try combining all pairs of the last generation's candidates
@@ -166,16 +168,16 @@ pub fn generate_rules(
                 // rule.
                 if let Some(rule) = Rule::merge(&candidate, &other, &index, min_confidence) {
                     if !next_candidates.contains(&rule) {
-                        next_candidates.push(rule);
+                        next_candidates.insert(rule);
                     }
                 }
             }
 
             // Move the previous generation into the output set, provided the lift
             // constraint is satisfied.
-            for r in candidates.into_iter().filter(|r| r.lift >= min_lift) {
+            for r in candidates.into_iter().filter(|r| r.lift() >= min_lift) {
                 if !rules.contains(&r) {
-                    rules.push(r);
+                    rules.insert(r);
                 }
             }
 
@@ -184,7 +186,7 @@ pub fn generate_rules(
             // lift threshold here too.
             candidates = next_candidates
                 .iter()
-                .filter(|r| r.lift >= min_lift)
+                .filter(|r| r.lift() >= min_lift)
                 .cloned()
                 .collect();
 

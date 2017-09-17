@@ -1,5 +1,6 @@
 extern crate argparse;
 extern crate itertools;
+extern crate ordered_float;
 extern crate rayon;
 
 mod index;
@@ -16,6 +17,7 @@ use fptree::sort_transaction;
 use fptree::fp_growth;
 use fptree::SortOrder;
 use generate_rules::generate_rules;
+use generate_rules::Rule;
 use index::Index;
 use command_line_args::Arguments;
 use command_line_args::parse_args_or_exit;
@@ -110,7 +112,11 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
 
     println!("Generating rules...");
     let timer = Instant::now();
-    let mut rules = generate_rules(&patterns, args.min_confidence, args.min_lift, &index);
+    let mut rules: Vec<Rule> =
+        generate_rules(&patterns, args.min_confidence, args.min_lift, &index)
+            .iter()
+            .cloned()
+            .collect();
     println!(
         "Generated {} rules in {} seconds.",
         rules.len(),
