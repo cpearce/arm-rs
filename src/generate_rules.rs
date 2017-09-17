@@ -1,6 +1,7 @@
 use itemizer::Itemizer;
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
+use rayon::prelude::*;
 use std::collections::HashSet;
 use std::collections::HashMap;
 use fptree::ItemSet;
@@ -181,64 +182,75 @@ pub fn generate_rules(
         itemset_support.insert(i.items.clone(), i.count as f64 / dataset_size as f64);
     }
 
-    let mut rules: HashSet<Rule> = HashSet::new();
-    for ref itemset in itemsets.iter().filter(|i| i.items.len() > 1) {
-        let mut candidates: HashSet<Rule> = HashSet::new();
-        // First level candidates are all the rules with consequents of size 1.
-        for &item in itemset.items.iter() {
-            let antecedent: Vec<u32> = vec![item];
-            let consequent: Vec<u32> = itemset
-                .items
-                .iter()
-                .filter(|&&x| x != item)
-                .cloned()
-                .collect();
-            if let Some(rule) = Rule::make(
-                antecedent,
-                consequent,
-                &itemset_support,
-                min_confidence,
-                min_lift,
-            ) {
-                candidates.insert(rule);
-            }
-        }
-
-        // Subsequent generations are created by merging with each other rule.
-        let mut next_candidates: HashSet<Rule> = HashSet::new();
-        while !candidates.is_empty() {
-            for (candidate, other) in candidates.iter().tuple_combinations() {
-                // Try combining all pairs of the last generation's candidates
-                // together. If the new rule is below the minimum confidence
-                // threshold, the merge will fail, and we'll not keep the new
-                // rule.
-                if let Some(rule) = Rule::merge(
-                    &candidate,
-                    &other,
+    let rv: Vec<HashSet<Rule>> = itemsets
+        .par_iter()
+        .filter(|i| i.items.len() > 1)
+        .map(|ref itemset|
+        {
+            let mut rules: HashSet<Rule> = HashSet::new();
+            let mut candidates: HashSet<Rule> = HashSet::new();
+            // First level candidates are all the rules with consequents of size 1.
+            for &item in itemset.items.iter() {
+                let antecedent: Vec<u32> = vec![item];
+                let consequent: Vec<u32> = itemset
+                    .items
+                    .iter()
+                    .filter(|&&x| x != item)
+                    .cloned()
+                    .collect();
+                if let Some(rule) = Rule::make(
+                    antecedent,
+                    consequent,
                     &itemset_support,
                     min_confidence,
                     min_lift,
                 ) {
-                    rules.insert(rule.clone());
-                    next_candidates.insert(rule);
+                    candidates.insert(rule);
                 }
             }
 
-            // Move the previous generation into the output set, provided the lift
-            // constraint is satisfied.
-            for r in candidates.iter() {
-                rules.insert(r.clone());
+            // Subsequent generations are created by merging with each other rule.
+            let mut next_candidates: HashSet<Rule> = HashSet::new();
+            while !candidates.is_empty() {
+                for (candidate, other) in candidates.iter().tuple_combinations() {
+                    // Try combining all pairs of the last generation's candidates
+                    // together. If the new rule is below the minimum confidence
+                    // threshold, the merge will fail, and we'll not keep the new
+                    // rule.
+                    if let Some(rule) = Rule::merge(
+                        &candidate,
+                        &other,
+                        &itemset_support,
+                        min_confidence,
+                        min_lift,
+                    ) {
+                        rules.insert(rule.clone());
+                        next_candidates.insert(rule);
+                    }
+                }
+
+                // Move the previous generation into the output set, provided the lift
+                // constraint is satisfied.
+                for r in candidates.iter() {
+                    rules.insert(r.clone());
+                }
+
+                // Copy the current generation into the candidates list, so that we
+                // use it to calculate the next generation. Note we filter by minimum
+                // lift threshold here too.
+                candidates = next_candidates.iter().cloned().collect();
+
+                next_candidates.clear();
             }
+            rules
+        }).collect();
 
-            // Copy the current generation into the candidates list, so that we
-            // use it to calculate the next generation. Note we filter by minimum
-            // lift threshold here too.
-            candidates = next_candidates.iter().cloned().collect();
-
-            next_candidates.clear();
+    let mut rules: HashSet<Rule> = HashSet::new();
+    for set in rv.into_iter() {
+        for rule in set {
+            rules.insert(rule);
         }
     }
-
     rules
 }
 

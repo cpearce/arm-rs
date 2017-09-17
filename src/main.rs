@@ -22,11 +22,13 @@ use generate_rules::Rule;
 use index::Index;
 use command_line_args::Arguments;
 use command_line_args::parse_args_or_exit;
+use ordered_float::OrderedFloat;
 
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
-use std::io::Write;
+use std::io::{BufWriter, Write};
+// use std::fs;
 use std::process;
 use std::time::Instant;
 
@@ -134,31 +136,33 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
         .cloned()
         .collect();
     println!(
-        "Generated {} rules in {} seconds.",
+        "Generated {} rules in {} seconds, writing to disk.",
         rules.len(),
         timer.elapsed().as_secs()
     );
 
+    let timer = Instant::now();
     {
-        let mut output = File::create(&args.output_rules_path)?;
+        let mut output = BufWriter::new(File::create(&args.output_rules_path).unwrap());
         writeln!(
             output,
             "Antecedent => Consequent, Confidence, Lift, Support"
         )?;
+        // Sort by decreasing lift.
         rules.sort_by(|ref a, ref b| {
-            a.to_string(&itemizer).cmp(&b.to_string(&itemizer))
+            OrderedFloat::from(b.lift()).cmp(&OrderedFloat::from(a.lift()))
         });
         for rule in rules {
-            writeln!(
-                output,
+            writeln!(output,
                 "{}, {}, {}, {}",
                 rule.to_string(&itemizer),
                 rule.confidence(),
                 rule.lift(),
-                rule.support()
+                rule.support(),
             )?;
         }
     }
+    println!("Wrote rules to disk in {} seconds.", timer.elapsed().as_secs());
 
     println!("Total runtime: {} seconds", start.elapsed().as_secs());
 
