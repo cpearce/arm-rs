@@ -90,6 +90,7 @@ impl Rule {
         consequent: Vec<u32>,
         index: &Index,
         min_confidence: f64,
+        min_lift: f64,
     ) -> Option<Rule> {
         if antecedent.is_empty() || consequent.is_empty() {
             return None;
@@ -105,6 +106,9 @@ impl Rule {
 
         let c_sup = index.support(&consequent);
         let lift = ac_sup / (a_sup * c_sup);
+        if lift < min_lift {
+            return None;
+        }
 
         // Note: We sort the antecedent and consequent so that equality
         // tests are consistent.
@@ -121,10 +125,16 @@ impl Rule {
     //  - the antecedent is the union of both rules' antecedents, and
     //  - the consequent is the intersection of both rules' consequents,
     // provided the new rule would be would be above the min_confidence threshold.
-    fn merge(a: &Rule, b: &Rule, index: &Index, min_confidence: f64) -> Option<Rule> {
+    fn merge(
+        a: &Rule,
+        b: &Rule,
+        index: &Index,
+        min_confidence: f64,
+        min_lift: f64,
+    ) -> Option<Rule> {
         let antecedent = union(&a.antecedent, &b.antecedent);
         let consequent = intersection(&a.consequent, &b.consequent);
-        Rule::make(antecedent, consequent, &index, min_confidence)
+        Rule::make(antecedent, consequent, &index, min_confidence, min_lift)
     }
 
     pub fn confidence(&self) -> f64 {
@@ -153,7 +163,8 @@ pub fn generate_rules(
         for &item in itemset {
             let antecedent: Vec<u32> = vec![item];
             let consequent: Vec<u32> = itemset.iter().filter(|&&x| x != item).cloned().collect();
-            if let Some(rule) = Rule::make(antecedent, consequent, &index, min_confidence) {
+            if let Some(rule) = Rule::make(antecedent, consequent, &index, min_confidence, min_lift)
+            {
                 candidates.insert(rule);
             }
         }
@@ -166,29 +177,24 @@ pub fn generate_rules(
                 // together. If the new rule is below the minimum confidence
                 // threshold, the merge will fail, and we'll not keep the new
                 // rule.
-                if let Some(rule) = Rule::merge(&candidate, &other, &index, min_confidence) {
-                    if !next_candidates.contains(&rule) {
-                        next_candidates.insert(rule);
-                    }
+                if let Some(rule) =
+                    Rule::merge(&candidate, &other, &index, min_confidence, min_lift)
+                {
+                    rules.insert(rule.clone());
+                    next_candidates.insert(rule);
                 }
             }
 
             // Move the previous generation into the output set, provided the lift
             // constraint is satisfied.
-            for r in candidates.into_iter().filter(|r| r.lift() >= min_lift) {
-                if !rules.contains(&r) {
-                    rules.insert(r);
-                }
+            for r in candidates.iter() {
+                rules.insert(r.clone());
             }
 
             // Copy the current generation into the candidates list, so that we
             // use it to calculate the next generation. Note we filter by minimum
             // lift threshold here too.
-            candidates = next_candidates
-                .iter()
-                .filter(|r| r.lift() >= min_lift)
-                .cloned()
-                .collect();
+            candidates = next_candidates.iter().cloned().collect();
 
             next_candidates.clear();
         }
@@ -266,50 +272,47 @@ mod tests {
         let rules = super::generate_rules(&itemsets, 0.05, 1.0, &index);
 
         let mut expected_rules: HashMap<&str, u32> = [
-            ("a ==> b", 0),
             ("a ==> b e", 0),
+            ("a ==> b", 0),
             ("a ==> e", 0),
             ("a b ==> e", 0),
-            ("a c ==> b", 0),
             ("a e ==> b", 0),
-            ("b ==> a", 0),
             ("b ==> a c", 0),
             ("b ==> a e", 0),
-            ("b ==> c", 0),
+            ("b ==> a", 0),
             ("b ==> c d", 0),
+            ("b ==> c", 0),
             ("b c ==> d", 0),
-            ("b c ==> f", 0),
             ("b d ==> c", 0),
             ("b e ==> a", 0),
-            ("b f ==> c", 0),
-            ("c ==> b", 0),
             ("c ==> b d", 0),
             ("c ==> b f", 0),
-            ("c ==> f", 0),
+            ("c ==> b", 0),
             ("c ==> f g", 0),
+            ("c ==> f", 0),
             ("c d ==> b", 0),
             ("c f ==> g", 0),
             ("c g ==> f", 0),
             ("d ==> b c", 0),
-            ("d ==> e", 0),
             ("d ==> e g", 0),
+            ("d ==> e", 0),
             ("d ==> g", 0),
             ("d e ==> g", 0),
             ("d g ==> e", 0),
-            ("e ==> a", 0),
             ("e ==> a b", 0),
-            ("e ==> d", 0),
+            ("e ==> a", 0),
             ("e ==> d g", 0),
+            ("e ==> d", 0),
             ("e ==> g", 0),
             ("e g ==> d", 0),
             ("f ==> b c", 0),
-            ("f ==> c", 0),
             ("f ==> c g", 0),
+            ("f ==> c", 0),
             ("f ==> g", 0),
             ("f g ==> c", 0),
             ("g ==> c f", 0),
-            ("g ==> d", 0),
             ("g ==> d e", 0),
+            ("g ==> d", 0),
             ("g ==> e", 0),
             ("g ==> f", 0),
         ].iter()
