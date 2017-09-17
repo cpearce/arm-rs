@@ -16,6 +16,7 @@ use fptree::FPTree;
 use fptree::sort_transaction;
 use fptree::fp_growth;
 use fptree::SortOrder;
+use fptree::ItemSet;
 use generate_rules::generate_rules;
 use generate_rules::Rule;
 use index::Index;
@@ -28,7 +29,6 @@ use std::fs::File;
 use std::io::Write;
 use std::process;
 use std::time::Instant;
-
 
 fn count_item_frequencies(
     reader: TransactionReader,
@@ -103,20 +103,36 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
 
     println!("Starting recursive FPGrowth...");
     let timer = Instant::now();
-    let patterns: Vec<Vec<u32>> = fp_growth(&fptree, min_count, &vec![], &itemizer);
+    let patterns: Vec<ItemSet> = fp_growth(
+        &fptree,
+        min_count,
+        &vec![],
+        num_transactions as u32,
+        &itemizer,
+    );
     println!(
         "FPGrowth generated {} frequent itemsets in {} seconds.",
         patterns.len(),
         timer.elapsed().as_secs()
     );
 
+    for ref pattern in patterns.iter() {
+        assert_eq!(
+            pattern.count as f64 / num_transactions as f64,
+            index.support(&pattern.items)
+        );
+    }
+
     println!("Generating rules...");
     let timer = Instant::now();
-    let mut rules: Vec<Rule> =
-        generate_rules(&patterns, args.min_confidence, args.min_lift, &index)
-            .iter()
-            .cloned()
-            .collect();
+    let mut rules: Vec<Rule> = generate_rules(
+        &patterns,
+        num_transactions as u32,
+        args.min_confidence,
+        args.min_lift,
+    ).iter()
+        .cloned()
+        .collect();
     println!(
         "Generated {} rules in {} seconds.",
         rules.len(),

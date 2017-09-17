@@ -1,8 +1,11 @@
 use itemizer::Itemizer;
 use rayon::prelude::*;
+use itertools::Itertools;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use std::cmp;
+
 
 #[derive(Eq, Debug)]
 struct FPNode {
@@ -214,13 +217,30 @@ fn construct_conditional_tree<'a>(
     conditional_tree
 }
 
+#[derive(Clone, Hash, PartialEq, Eq, Debug)]
+pub struct ItemSet {
+    pub items: Vec<u32>,
+    pub count: u32,
+}
+
+impl ItemSet {
+    pub fn new(items: Vec<u32>, count: u32) -> ItemSet {
+        let sorted_items = items.iter().cloned().sorted();
+        ItemSet {
+            items: sorted_items,
+            count: count,
+        }
+    }
+}
+
 pub fn fp_growth(
     fptree: &FPTree,
     min_count: u32,
     path: &[u32],
+    path_count: u32,
     itemizer: &Itemizer,
-) -> Vec<Vec<u32>> {
-    let mut itemsets: Vec<Vec<u32>> = vec![];
+) -> Vec<ItemSet> {
+    let mut itemsets: Vec<ItemSet> = vec![];
 
     // Maps a node to its parent.
     let parent_table = make_parent_table(&fptree);
@@ -237,25 +257,32 @@ pub fn fp_growth(
         .collect();
     sort_transaction(&mut items, fptree.item_count(), SortOrder::Increasing);
 
-    let x: Vec<Vec<u32>> = items
+    let x: Vec<ItemSet> = items
         .par_iter()
-        .flat_map(|item| -> Vec<Vec<u32>> {
+        .flat_map(|item| -> Vec<ItemSet> {
             // The path to here plus this item must be above the minimum
             // support threshold.
             let mut itemset: Vec<u32> = Vec::from(path);
+            let new_path_count = cmp::min(path_count, get_item_count(*item, fptree.item_count()));
             itemset.push(*item);
 
-            let mut result: Vec<Vec<u32>> = Vec::new();
+            let mut result: Vec<ItemSet> = Vec::new();
 
             if let Some(item_list) = item_index.get(item) {
                 let conditional_tree = construct_conditional_tree(&parent_table, item_list);
-                let mut y = fp_growth(&conditional_tree, min_count, &itemset, itemizer);
+                let mut y = fp_growth(
+                    &conditional_tree,
+                    min_count,
+                    &itemset,
+                    new_path_count,
+                    itemizer,
+                );
                 result.append(&mut y);
             };
-            result.push(itemset);
+            result.push(ItemSet::new(itemset, new_path_count));
             result
         })
-        .collect::<Vec<Vec<u32>>>();
+        .collect::<Vec<ItemSet>>();
 
     itemsets.extend(x);
     itemsets
