@@ -21,17 +21,33 @@ impl PartialEq for Rule {
     }
 }
 
+// Assumes both itemsets are sorted.
 fn union(a: &Vec<u32>, b: &Vec<u32>) -> Vec<u32> {
     let mut c: Vec<u32> = Vec::new();
-    for &i in a.iter() {
-        c.push(i);
-    }
-    for &i in b.iter() {
-        if !c.contains(&i) {
-            c.push(i);
+    let mut ap = 0;
+    let mut bp = 0;
+    while ap < a.len() && bp < b.len() {
+        if a[ap] < b[bp] {
+            c.push(a[ap]);
+            ap += 1;
+        } else if b[bp] < a[ap] {
+            c.push(b[bp]);
+            bp += 1;
+        } else {
+            // a[ap] == b[bp]
+            c.push(a[ap]);
+            ap += 1;
+            bp += 1;
         }
     }
-    c.sort();
+    while ap < a.len() {
+        c.push(a[ap]);
+        ap += 1;
+    }
+    while bp < b.len() {
+        c.push(b[bp]);
+        bp += 1;
+    }
     c
 }
 
