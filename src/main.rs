@@ -105,18 +105,35 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
 
     println!("Starting recursive FPGrowth...");
     let timer = Instant::now();
-    let patterns: Vec<ItemSet> = fp_growth(
+    let mut patterns: Vec<ItemSet> = fp_growth(
         &fptree,
         min_count,
         &vec![],
         num_transactions as u32,
         &itemizer,
     );
+
     println!(
         "FPGrowth generated {} frequent itemsets in {} seconds.",
         patterns.len(),
         timer.elapsed().as_secs()
     );
+
+    // Split patterns by level, i.e. size.
+    let timer = Instant::now();
+    let mut levels: Vec<Vec<ItemSet>> = vec![];
+    for pattern in patterns.iter() {
+        while levels.len() <= pattern.len() {
+            levels.push(vec![]);
+        }
+        levels[pattern.len()] = pattern;
+    }
+    patterns.sort();
+    println!("Sorted in {} seconds", timer.elapsed().as_secs());
+
+    for i in 1..patterns.len() {
+        assert!(patterns[i].len() >= patterns[i-1].len());
+    }
 
     for ref pattern in patterns.iter() {
         assert_eq!(

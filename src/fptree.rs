@@ -217,10 +217,19 @@ fn construct_conditional_tree<'a>(
     conditional_tree
 }
 
-#[derive(Clone, Hash, PartialEq, Eq, Debug)]
+#[derive(Clone, Hash, PartialEq, Eq, Debug, Ord)]
 pub struct ItemSet {
     pub items: Vec<u32>,
     pub count: u32,
+}
+
+impl PartialOrd for ItemSet {
+    fn partial_cmp(&self, other: &ItemSet) -> Option<cmp::Ordering> {
+        if other.len() != self.len() {
+            return Some(self.len().cmp(&other.len()))
+        }
+        Some(self.items.cmp(&other.items))
+    } 
 }
 
 impl ItemSet {
@@ -230,6 +239,10 @@ impl ItemSet {
             items: sorted_items,
             count: count,
         }
+    }
+
+    pub fn len(&self) -> usize {
+        self.items.len()
     }
 }
 
