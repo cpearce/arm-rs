@@ -175,15 +175,10 @@ impl Rule {
     }
 }
 
-pub fn split_out_item(items: &Vec<u32>, item: u32) -> (Vec<u32>, Vec<u32>)
-{
-    let antecedent: Vec<u32> = items
-        .iter()
-        .filter(|&&x| x != item)
-        .cloned()
-        .collect();
+pub fn split_out_item(items: &Vec<u32>, item: u32) -> (Vec<u32>, Vec<u32>) {
+    let antecedent: Vec<u32> = items.iter().filter(|&&x| x != item).cloned().collect();
     let consequent: Vec<u32> = vec![item];
-    (antecedent, consequent) 
+    (antecedent, consequent)
 }
 
 pub fn generate_rules(
@@ -201,10 +196,7 @@ pub fn generate_rules(
     }
 
     let mut rules: HashSet<Rule> = HashSet::new();
-    for ref itemset in itemsets
-        .iter()
-        .filter(|i| i.items.len() > 1)
-    {
+    for ref itemset in itemsets.iter().filter(|i| i.items.len() > 1) {
         println!("Itemset {:?}", itemset.items);
         let mut candidates: Vec<Rule> = Vec::new();
         // First level candidates are all the rules with consequents of size 1.
@@ -222,8 +214,7 @@ pub fn generate_rules(
                 assert!(!rules.contains(&rule));
                 candidates.push(rule.clone());
 
-                println!("Initial generation of {}",
-                    rule.to_string(&itemizer));
+                println!("Initial generation of {}", rule.to_string(&itemizer));
                 rules.insert(rule);
             }
         }
@@ -237,28 +228,6 @@ pub fn generate_rules(
             for (candidate, other) in candidates.iter().tuple_combinations() {
                 assert_eq!(candidate.union_size(), other.union_size());
 
-                // let a = &candidate.antecedent;
-                // let b = &other.antecedent;
-
-                // let mut pa = 0;
-                // let mut pb = 0;
-                // let mut diff = 0;
-                // while pa > a.len() && pb < b.len() {
-                //     if a[pa] == b[pb] {
-                //         pa += 1;
-                //         pb += 1;
-                //     } else if a[pa] < b[pb] {
-                //         pa += 1;
-                //         diff += 1;
-                //     } else { // a[pa] > b[pb]
-                //         pb += 1;
-                //         diff += 1;
-                //     }
-                // }
-                // if diff > 1 {
-                //     continue;
-                // }
-                
                 if let Some(rule) = Rule::merge(
                     &candidate,
                     &other,
@@ -266,9 +235,12 @@ pub fn generate_rules(
                     min_confidence,
                     min_lift,
                 ) {
-                    println!("Generated {} from {} and {}",
-                    rule.to_string(&itemizer), candidate.to_string(&itemizer),
-                    other.to_string(&itemizer));
+                    println!(
+                        "Generated {} from {} and {}",
+                        rule.to_string(&itemizer),
+                        candidate.to_string(&itemizer),
+                        other.to_string(&itemizer)
+                    );
 
                     if rules.contains(&rule) {
                         println!("Deplicate generation of {}", rule.to_string(&itemizer));
@@ -278,18 +250,17 @@ pub fn generate_rules(
                         rules.insert(rule.clone());
                         next_candidates.push(rule);
                     }
-                }                
+                }
             }
             // Copy the current generation into the candidates list, so that we
             // use it to calculate the next generation.
             candidates = next_candidates.iter().cloned().collect();
 
-            next_candidates.clear();            
+            next_candidates.clear();
         }
-
     }
 
-/*
+    /*
     let rv: Vec<HashSet<Rule>> = itemsets
         .par_iter()
         .filter(|i| i.items.len() > 1)
@@ -397,7 +368,7 @@ mod tests {
             index.insert(&transaction);
         }
 
-         let itemsets = [
+        let itemsets = [
             vec!["b", "e"],
             vec!["a", "e"],
             vec!["a", "b", "e"],

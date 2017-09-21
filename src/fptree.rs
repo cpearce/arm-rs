@@ -226,10 +226,10 @@ pub struct ItemSet {
 impl PartialOrd for ItemSet {
     fn partial_cmp(&self, other: &ItemSet) -> Option<cmp::Ordering> {
         if other.len() != self.len() {
-            return Some(self.len().cmp(&other.len()))
+            return Some(self.len().cmp(&other.len()));
         }
         Some(self.items.cmp(&other.items))
-    } 
+    }
 }
 
 impl ItemSet {

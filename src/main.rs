@@ -155,7 +155,8 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
             OrderedFloat::from(b.lift()).cmp(&OrderedFloat::from(a.lift()))
         });
         for rule in rules {
-            writeln!(output,
+            writeln!(
+                output,
                 "{}, {}, {}, {}",
                 rule.to_string(&itemizer),
                 rule.confidence(),
@@ -164,7 +165,10 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
             )?;
         }
     }
-    println!("Wrote rules to disk in {} seconds.", timer.elapsed().as_secs());
+    println!(
+        "Wrote rules to disk in {} seconds.",
+        timer.elapsed().as_secs()
+    );
 
     println!("Total runtime: {} seconds", start.elapsed().as_secs());
 
