@@ -119,22 +119,6 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
         timer.elapsed().as_secs()
     );
 
-    // Split patterns by level, i.e. size.
-    let timer = Instant::now();
-    let mut levels: Vec<Vec<ItemSet>> = vec![];
-    for pattern in patterns.iter() {
-        while levels.len() <= pattern.len() {
-            levels.push(vec![]);
-        }
-        levels[pattern.len()] = pattern;
-    }
-    patterns.sort();
-    println!("Sorted in {} seconds", timer.elapsed().as_secs());
-
-    for i in 1..patterns.len() {
-        assert!(patterns[i].len() >= patterns[i-1].len());
-    }
-
     for ref pattern in patterns.iter() {
         assert_eq!(
             pattern.count as f64 / num_transactions as f64,
@@ -149,6 +133,7 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
         num_transactions as u32,
         args.min_confidence,
         args.min_lift,
+        &itemizer,
     ).iter()
         .cloned()
         .collect();
