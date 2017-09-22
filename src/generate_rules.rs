@@ -211,7 +211,6 @@ pub fn generate_rules(
     dataset_size: u32,
     min_confidence: f64,
     min_lift: f64,
-    itemizer: &Itemizer,
 ) -> HashSet<Rule> {
     // Create a lookup of itemset to support, so we can quickly determine
     // an itemset's support during rule generation.
@@ -220,88 +219,16 @@ pub fn generate_rules(
         itemset_support.insert(i.items.clone(), i.count as f64 / dataset_size as f64);
     }
 
-    let mut rules: HashSet<Rule> = HashSet::new();
-    for ref itemset in itemsets.iter().filter(|i| i.items.len() > 1) {
-        println!("Itemset {:?}", itemset.items);
-        let mut candidates: Vec<Rule> = Vec::new();
-        // First level candidates are all the rules with consequents of size 1.
-        for &item in itemset.items.iter() {
-            let (antecedent, consequent) = split_out_item(&itemset.items, item);
-            if let Some(rule) = Rule::make(
-                antecedent,
-                consequent,
-                &itemset_support,
-                min_confidence,
-                min_lift,
-            ) {
-                // Passes confidence and lift threshold, keep rule.
-                assert!(!candidates.contains(&rule));
-                assert!(!rules.contains(&rule));
-                candidates.push(rule.clone());
-
-                println!("Initial generation of {}", rule.to_string(&itemizer));
-                rules.insert(rule);
-            }
-        }
-
-        // Must only join candidates that share a "k-1" subset.
-        // If the union of the two rules' antecedent and consequent
-        // are only different by 1 item.
-
-        while !candidates.is_empty() {
-            let mut next_candidates = vec![];
-            for (candidate, other) in candidates.iter().tuple_combinations() {
-                assert_eq!(candidate.union_size(), other.union_size());
-
-                if let Some(rule) = Rule::merge(
-                    &candidate,
-                    &other,
-                    &itemset_support,
-                    min_confidence,
-                    min_lift,
-                ) {
-                    println!(
-                        "Generated {} from {} and {}",
-                        rule.to_string(&itemizer),
-                        candidate.to_string(&itemizer),
-                        other.to_string(&itemizer)
-                    );
-
-                    if rules.contains(&rule) {
-                        println!("Deplicate generation of {}", rule.to_string(&itemizer));
-                    }
-
-                    if !rules.contains(&rule) {
-                        rules.insert(rule.clone());
-                        next_candidates.push(rule);
-                    }
-                }
-            }
-            // Copy the current generation into the candidates list, so that we
-            // use it to calculate the next generation.
-            candidates = next_candidates.iter().cloned().collect();
-
-            next_candidates.clear();
-        }
-    }
-
-    /*
     let rv: Vec<HashSet<Rule>> = itemsets
         .par_iter()
         .filter(|i| i.items.len() > 1)
         .map(|ref itemset|
-        {
+         {
             let mut rules: HashSet<Rule> = HashSet::new();
-            let mut candidates: HashSet<Rule> = HashSet::new();
+            let mut candidates: Vec<Rule> = Vec::new();
             // First level candidates are all the rules with consequents of size 1.
             for &item in itemset.items.iter() {
-                let antecedent: Vec<u32> = vec![item];
-                let consequent: Vec<u32> = itemset
-                    .items
-                    .iter()
-                    .filter(|&&x| x != item)
-                    .cloned()
-                    .collect();
+                let (antecedent, consequent) = split_out_item(&itemset.items, item);
                 if let Some(rule) = Rule::make(
                     antecedent,
                     consequent,
@@ -309,19 +236,21 @@ pub fn generate_rules(
                     min_confidence,
                     min_lift,
                 ) {
-                    candidates.insert(rule);
+                    // Passes confidence and lift threshold, keep rule.
+                    assert!(!candidates.contains(&rule));
+                    assert!(!rules.contains(&rule));
+                    candidates.push(rule.clone());
+                    rules.insert(rule);
                 }
             }
 
-            // Subsequent generations are created by merging with each other rule.
-            let mut next_candidates: HashSet<Rule> = HashSet::new();
             while !candidates.is_empty() {
-
+                // Subsequent level candidates have their antecedents as the
+                // intersection and the consequent as the union of two parent
+                // rules.
+                let mut next_candidates = vec![];
                 for (candidate, other) in candidates.iter().tuple_combinations() {
-                    // Try combining all pairs of the last generation's candidates
-                    // together. If the new rule is below the minimum confidence
-                    // threshold, the merge will fail, and we'll not keep the new
-                    // rule.
+                    assert_eq!(candidate.union_size(), other.union_size());
                     if let Some(rule) = Rule::merge(
                         &candidate,
                         &other,
@@ -329,20 +258,14 @@ pub fn generate_rules(
                         min_confidence,
                         min_lift,
                     ) {
-                        rules.insert(rule.clone());
-                        next_candidates.insert(rule);
+                        if !rules.contains(&rule) {
+                            rules.insert(rule.clone());
+                            next_candidates.push(rule);
+                        }
                     }
                 }
-
-                // Move the previous generation into the output set, provided the lift
-                // constraint is satisfied.
-                for r in candidates.iter() {
-                    rules.insert(r.clone());
-                }
-
                 // Copy the current generation into the candidates list, so that we
-                // use it to calculate the next generation. Note we filter by minimum
-                // lift threshold here too.
+                // use it to calculate the next generation.
                 candidates = next_candidates.iter().cloned().collect();
 
                 next_candidates.clear();
@@ -357,7 +280,6 @@ pub fn generate_rules(
         }
     }
 
-*/
     rules
 }
 
@@ -434,47 +356,47 @@ mod tests {
         let rules = super::generate_rules(&itemsets, transactions.len() as u32, 0.05, 1.0);
 
         let mut expected_rules: HashMap<&str, u32> = [
-            ("a ==> b e", 0),
             ("a ==> b", 0),
+            ("a ==> b e", 0),
             ("a ==> e", 0),
             ("a b ==> e", 0),
+            ("a c ==> b", 0),
             ("a e ==> b", 0),
-            ("b ==> a c", 0),
-            ("b ==> a e", 0),
             ("b ==> a", 0),
-            ("b ==> c d", 0),
+            ("b ==> a e", 0),
             ("b ==> c", 0),
+            ("b ==> c d", 0),
             ("b c ==> d", 0),
+            ("b c ==> f", 0),
             ("b d ==> c", 0),
             ("b e ==> a", 0),
-            ("c ==> b d", 0),
-            ("c ==> b f", 0),
+            ("b f ==> c", 0),
             ("c ==> b", 0),
-            ("c ==> f g", 0),
+            ("c ==> b d", 0),
             ("c ==> f", 0),
+            ("c ==> f g", 0),
             ("c d ==> b", 0),
             ("c f ==> g", 0),
             ("c g ==> f", 0),
             ("d ==> b c", 0),
-            ("d ==> e g", 0),
             ("d ==> e", 0),
+            ("d ==> e g", 0),
             ("d ==> g", 0),
             ("d e ==> g", 0),
             ("d g ==> e", 0),
-            ("e ==> a b", 0),
             ("e ==> a", 0),
-            ("e ==> d g", 0),
+            ("e ==> a b", 0),
             ("e ==> d", 0),
+            ("e ==> d g", 0),
             ("e ==> g", 0),
             ("e g ==> d", 0),
-            ("f ==> b c", 0),
-            ("f ==> c g", 0),
             ("f ==> c", 0),
+            ("f ==> c g", 0),
             ("f ==> g", 0),
             ("f g ==> c", 0),
             ("g ==> c f", 0),
-            ("g ==> d e", 0),
             ("g ==> d", 0),
+            ("g ==> d e", 0),
             ("g ==> e", 0),
             ("g ==> f", 0),
         ].iter()

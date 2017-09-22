@@ -22,8 +22,6 @@ use generate_rules::Rule;
 use index::Index;
 use command_line_args::Arguments;
 use command_line_args::parse_args_or_exit;
-use ordered_float::OrderedFloat;
-
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
@@ -105,7 +103,7 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
 
     println!("Starting recursive FPGrowth...");
     let timer = Instant::now();
-    let mut patterns: Vec<ItemSet> = fp_growth(
+    let patterns: Vec<ItemSet> = fp_growth(
         &fptree,
         min_count,
         &vec![],
@@ -128,12 +126,11 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
 
     println!("Generating rules...");
     let timer = Instant::now();
-    let mut rules: Vec<Rule> = generate_rules(
+    let rules: Vec<Rule> = generate_rules(
         &patterns,
         num_transactions as u32,
         args.min_confidence,
         args.min_lift,
-        &itemizer,
     ).iter()
         .cloned()
         .collect();
@@ -150,10 +147,6 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
             output,
             "Antecedent => Consequent, Confidence, Lift, Support"
         )?;
-        // Sort by decreasing lift.
-        rules.sort_by(|ref a, ref b| {
-            OrderedFloat::from(b.lift()).cmp(&OrderedFloat::from(a.lift()))
-        });
         for rule in rules {
             writeln!(
                 output,
