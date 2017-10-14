@@ -222,8 +222,7 @@ pub fn generate_rules(
     let rv: Vec<HashSet<Rule>> = itemsets
         .par_iter()
         .filter(|i| i.items.len() > 1)
-        .map(|ref itemset|
-         {
+        .map(|ref itemset| {
             let mut rules: HashSet<Rule> = HashSet::new();
             let mut candidates: Vec<Rule> = Vec::new();
             // First level candidates are all the rules with consequents of size 1.
@@ -271,7 +270,8 @@ pub fn generate_rules(
                 next_candidates.clear();
             }
             rules
-        }).collect();
+        })
+        .collect();
 
     let mut rules: HashSet<Rule> = HashSet::new();
     for set in rv.into_iter() {
