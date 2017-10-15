@@ -22,7 +22,7 @@ impl Itemizer {
         self.next_item_id += 1;
         self.item_str_to_id.insert(String::from(item), id);
         self.item_id_to_str.insert(id, String::from(item));
-        return id;
+        id
     }
     pub fn str_of(&self, id: u32) -> String {
         match self.item_id_to_str.get(&id) {
