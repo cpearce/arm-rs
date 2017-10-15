@@ -13,7 +13,7 @@ impl Index {
             transaction_count: 0,
         }
     }
-    pub fn insert(&mut self, transaction: &Vec<u32>) {
+    pub fn insert(&mut self, transaction: &[u32]) {
         let tid = self.transaction_count;
         self.transaction_count += 1;
         for &item_id in transaction {
@@ -24,17 +24,18 @@ impl Index {
             self.index[item_index].push(tid);
         }
     }
-    pub fn support(&self, transaction: &Vec<u32>) -> f64 {
+
+    pub fn count(&self, transaction: &[u32]) -> usize {
         if transaction.is_empty() {
-            return 0.0;
+            return 0;
         }
 
         if transaction.len() == 1 {
             let item_index = transaction[0] as usize;
             if item_index >= self.index.len() {
-                return 0.0;
+                return 0;
             }
-            return (self.index[item_index].len() as f64) / (self.transaction_count as f64);
+            return self.index[item_index].len();
         }
 
         let mut tid_lists: Vec<&Vec<usize>> = vec![];
@@ -66,7 +67,17 @@ impl Index {
             }
         }
 
+        count
+    }
+
+    #[allow(dead_code)]
+    pub fn support(&self, transaction: &[u32]) -> f64 {
+        let count = self.count(transaction);
         (count as f64) / (self.transaction_count as f64)
+    }
+
+    pub fn num_transactions(&self) -> usize {
+        self.transaction_count
     }
 }
 
