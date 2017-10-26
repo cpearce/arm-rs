@@ -1,3 +1,4 @@
+use item::Item;
 use itemizer::Itemizer;
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
@@ -8,8 +9,8 @@ use fptree::ItemSet;
 
 #[derive(Clone, Hash, Eq, Debug)]
 pub struct Rule {
-    antecedent: Vec<u32>,
-    consequent: Vec<u32>,
+    antecedent: Vec<Item>,
+    consequent: Vec<Item>,
     confidence: OrderedFloat<f64>,
     lift: OrderedFloat<f64>,
     support: OrderedFloat<f64>,
@@ -22,8 +23,8 @@ impl PartialEq for Rule {
 }
 
 // Assumes both itemsets are sorted.
-fn union(a: &Vec<u32>, b: &Vec<u32>) -> Vec<u32> {
-    let mut c: Vec<u32> = Vec::new();
+fn union(a: &Vec<Item>, b: &Vec<Item>) -> Vec<Item> {
+    let mut c: Vec<Item> = Vec::new();
     let mut ap = 0;
     let mut bp = 0;
     while ap < a.len() && bp < b.len() {
@@ -52,8 +53,8 @@ fn union(a: &Vec<u32>, b: &Vec<u32>) -> Vec<u32> {
 }
 
 // Assumes both itemsets are sorted.
-fn intersection(a: &Vec<u32>, b: &Vec<u32>) -> Vec<u32> {
-    let mut c: Vec<u32> = Vec::new();
+fn intersection(a: &Vec<Item>, b: &Vec<Item>) -> Vec<Item> {
+    let mut c: Vec<Item> = Vec::new();
     let mut ap = 0;
     let mut bp = 0;
     while ap < a.len() && bp < b.len() {
@@ -113,9 +114,9 @@ impl Rule {
     // Creates a new Rule from (antecedent,consequent) if the rule
     // would be above the min_confidence threshold.
     fn make(
-        antecedent: Vec<u32>,
-        consequent: Vec<u32>,
-        itemset_support: &HashMap<Vec<u32>, f64>,
+        antecedent: Vec<Item>,
+        consequent: Vec<Item>,
+        itemset_support: &HashMap<Vec<Item>, f64>,
         min_confidence: f64,
         min_lift: f64,
     ) -> Option<Rule> {
@@ -123,7 +124,7 @@ impl Rule {
             return None;
         }
 
-        let ac_vec: Vec<u32> = union(&antecedent, &consequent);
+        let ac_vec: Vec<Item> = union(&antecedent, &consequent);
         let ac_sup = match itemset_support.get(&ac_vec) {
             Some(support) => support.clone(),
             None => return None,
@@ -166,7 +167,7 @@ impl Rule {
     fn merge(
         a: &Rule,
         b: &Rule,
-        itemset_support: &HashMap<Vec<u32>, f64>,
+        itemset_support: &HashMap<Vec<Item>, f64>,
         min_confidence: f64,
         min_lift: f64,
     ) -> Option<Rule> {
@@ -200,9 +201,9 @@ impl Rule {
     }
 }
 
-pub fn split_out_item(items: &Vec<u32>, item: u32) -> (Vec<u32>, Vec<u32>) {
-    let antecedent: Vec<u32> = items.iter().filter(|&&x| x != item).cloned().collect();
-    let consequent: Vec<u32> = vec![item];
+pub fn split_out_item(items: &Vec<Item>, item: Item) -> (Vec<Item>, Vec<Item>) {
+    let antecedent: Vec<Item> = items.iter().filter(|&&x| x != item).cloned().collect();
+    let consequent: Vec<Item> = vec![item];
     (antecedent, consequent)
 }
 
@@ -214,7 +215,7 @@ pub fn generate_rules(
 ) -> HashSet<Rule> {
     // Create a lookup of itemset to support, so we can quickly determine
     // an itemset's support during rule generation.
-    let mut itemset_support: HashMap<Vec<u32>, f64> = HashMap::with_capacity(itemsets.len());
+    let mut itemset_support: HashMap<Vec<Item>, f64> = HashMap::with_capacity(itemsets.len());
     for ref i in itemsets.iter() {
         itemset_support.insert(i.items.clone(), i.count as f64 / dataset_size as f64);
     }
@@ -289,6 +290,7 @@ mod tests {
     fn test_index() {
         use index::Index;
         use super::ItemSet;
+        use item::Item;
         use super::Itemizer;
         use std::collections::HashMap;
 
@@ -311,7 +313,7 @@ mod tests {
         ];
         let mut itemizer: Itemizer = Itemizer::new();
         for line in &transactions {
-            let transaction = line.iter().map(|s| itemizer.id_of(s)).collect::<Vec<u32>>();
+            let transaction = line.iter().map(|s| itemizer.id_of(s)).collect::<Vec<Item>>();
             index.insert(&transaction);
         }
 

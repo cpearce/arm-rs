@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::BufReader;
 use std::io::prelude::*;
+use item::Item;
 use itemizer::Itemizer;
 use std::collections::HashSet;
 
@@ -21,8 +22,8 @@ impl<'a> TransactionReader<'a> {
 }
 
 impl<'a> Iterator for TransactionReader<'a> {
-    type Item = Vec<u32>;
-    fn next(&mut self) -> Option<Vec<u32>> {
+    type Item = Vec<Item>;
+    fn next(&mut self) -> Option<Vec<Item>> {
         let mut line = String::new();
         loop {
             let len = self.reader.read_line(&mut line).unwrap();
@@ -31,10 +32,10 @@ impl<'a> Iterator for TransactionReader<'a> {
             }
             let splits = line.split(",")
                 .map(|s| self.itemizer.id_of(s.trim()))
-                .collect::<HashSet<u32>>()
+                .collect::<HashSet<Item>>()
                 .iter()
                 .cloned()
-                .collect::<Vec<u32>>();
+                .collect::<Vec<Item>>();
             if splits.len() > 0 {
                 return Some(splits);
             }

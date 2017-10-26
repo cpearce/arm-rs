@@ -4,6 +4,7 @@ extern crate ordered_float;
 extern crate rayon;
 
 mod index;
+mod item;
 mod itemizer;
 mod transaction_reader;
 mod fptree;
@@ -11,6 +12,7 @@ mod generate_rules;
 mod command_line_args;
 
 use itemizer::Itemizer;
+use item::Item;
 use transaction_reader::TransactionReader;
 use fptree::FPTree;
 use fptree::sort_transaction;
@@ -32,8 +34,8 @@ use std::time::Instant;
 
 fn count_item_frequencies(
     reader: TransactionReader,
-) -> Result<(HashMap<u32, u32>, usize), Box<Error>> {
-    let mut item_count: HashMap<u32, u32> = HashMap::new();
+) -> Result<(HashMap<Item, u32>, usize), Box<Error>> {
+    let mut item_count: HashMap<Item, u32> = HashMap::new();
     let mut num_transactions = 0;
     for transaction in reader {
         num_transactions += 1;
@@ -74,7 +76,7 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
         // Strip out infrequent items from the transaction. This can
         // drastically reduce the tree size, and speed up loading the
         // initial tree.
-        let mut filtered_transaction: Vec<u32> = Vec::new();
+        let mut filtered_transaction: Vec<Item> = Vec::new();
         for item in transaction {
             if let Some(&count) = item_count.get(&item) {
                 if count > min_count {

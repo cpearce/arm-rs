@@ -1,3 +1,4 @@
+use item::Item;
 use itemizer::Itemizer;
 use rayon::prelude::*;
 use itertools::Itertools;
@@ -10,7 +11,7 @@ use std::cmp;
 #[derive(Eq, Debug)]
 struct FPNode {
     id: u32,
-    item: u32,
+    item: Item,
     count: u32,
     children: Vec<FPNode>,
 }
@@ -30,12 +31,12 @@ impl Hash for FPNode {
 pub struct FPTree {
     root: FPNode,
     num_transactions: u32,
-    item_count: HashMap<u32, u32>,
+    item_count: HashMap<Item, u32>,
     node_count: u32,
 }
 
 impl FPNode {
-    fn new(id: u32, item: u32) -> FPNode {
+    fn new(id: u32, item: Item) -> FPNode {
         FPNode {
             id: id,
             item: item,
@@ -44,7 +45,7 @@ impl FPNode {
         }
     }
 
-    fn insert(&mut self, transaction: &[u32], count: u32, next_node_id: u32) -> u32 {
+    fn insert(&mut self, transaction: &[Item], count: u32, next_node_id: u32) -> u32 {
         if transaction.len() == 0 {
             return 0;
         }
@@ -73,11 +74,11 @@ impl FPNode {
     }
 
     fn is_root(&self) -> bool {
-        self.item == 0
+        self.item.is_null()
     }
 
     #[allow(dead_code)]
-    fn print(&self, itemizer: &Itemizer, item_count: &HashMap<u32, u32>, level: u32) {
+    fn print(&self, itemizer: &Itemizer, item_count: &HashMap<Item, u32>, level: u32) {
         let mut indicies: Vec<usize> = (0..self.children.len()).collect();
         indicies.sort_by(|&a, &b| {
             item_cmp(&self.children[b].item, &self.children[a].item, item_count)
@@ -94,7 +95,7 @@ impl FPNode {
 
 impl FPTree {
     pub fn new() -> FPTree {
-        let root_node = FPNode::new(0, 0);
+        let root_node = FPNode::new(0, Item::null());
         return FPTree {
             root: root_node,
             num_transactions: 0,
@@ -103,7 +104,7 @@ impl FPTree {
         };
     }
 
-    pub fn insert(&mut self, transaction: &[u32], count: u32) {
+    pub fn insert(&mut self, transaction: &[Item], count: u32) {
         // Keep a count of item frequencies of what's in the
         // tree to make sorting later easier.
         for item in transaction {
@@ -117,7 +118,7 @@ impl FPTree {
         &self.root
     }
 
-    fn item_count(&self) -> &HashMap<u32, u32> {
+    fn item_count(&self) -> &HashMap<Item, u32> {
         &self.item_count
     }
 
@@ -127,7 +128,7 @@ impl FPTree {
     }
 }
 
-fn get_item_count(item: u32, item_count: &HashMap<u32, u32>) -> u32 {
+fn get_item_count(item: Item, item_count: &HashMap<Item, u32>) -> u32 {
     match item_count.get(&item) {
         Some(count) => *count,
         None => 0,
@@ -139,7 +140,7 @@ pub enum SortOrder {
     Decreasing,
 }
 
-fn item_cmp(a: &u32, b: &u32, item_count: &HashMap<u32, u32>) -> Ordering {
+fn item_cmp(a: &Item, b: &Item, item_count: &HashMap<Item, u32>) -> Ordering {
     let a_count = get_item_count(*a, item_count);
     let b_count = get_item_count(*b, item_count);
     if a_count == b_count {
@@ -148,7 +149,7 @@ fn item_cmp(a: &u32, b: &u32, item_count: &HashMap<u32, u32>) -> Ordering {
     a_count.cmp(&b_count)
 }
 
-pub fn sort_transaction(transaction: &mut [u32], item_count: &HashMap<u32, u32>, order: SortOrder) {
+pub fn sort_transaction(transaction: &mut [Item], item_count: &HashMap<Item, u32>, order: SortOrder) {
     match order {
         SortOrder::Increasing => transaction.sort_by(|a, b| item_cmp(a, b, item_count)),
         SortOrder::Decreasing => transaction.sort_by(|a, b| item_cmp(b, a, item_count)),
@@ -169,14 +170,14 @@ fn make_parent_table<'a>(fptree: &'a FPTree) -> HashMap<&'a FPNode, &'a FPNode> 
     table
 }
 
-fn add_nodes_to_index<'a>(node: &'a FPNode, index: &mut HashMap<u32, Vec<&'a FPNode>>) {
+fn add_nodes_to_index<'a>(node: &'a FPNode, index: &mut HashMap<Item, Vec<&'a FPNode>>) {
     for ref child in node.children.iter() {
         index.entry(child.item).or_insert(vec![]).push(child);
         add_nodes_to_index(child, index)
     }
 }
 
-fn make_item_index<'a>(fptree: &'a FPTree) -> HashMap<u32, Vec<&'a FPNode>> {
+fn make_item_index<'a>(fptree: &'a FPTree) -> HashMap<Item, Vec<&'a FPNode>> {
     let mut index = HashMap::new();
     add_nodes_to_index(fptree.root(), &mut index);
     index
@@ -185,7 +186,7 @@ fn make_item_index<'a>(fptree: &'a FPTree) -> HashMap<u32, Vec<&'a FPNode>> {
 fn path_from_root_to<'a>(
     node: &'a FPNode,
     parent_table: &HashMap<&'a FPNode, &'a FPNode>,
-) -> Vec<u32> {
+) -> Vec<Item> {
     let mut path = vec![];
     let mut n = node;
     loop {
@@ -219,7 +220,7 @@ fn construct_conditional_tree<'a>(
 
 #[derive(Clone, Hash, PartialEq, Eq, Debug, Ord)]
 pub struct ItemSet {
-    pub items: Vec<u32>,
+    pub items: Vec<Item>,
     pub count: u32,
 }
 
@@ -233,7 +234,7 @@ impl PartialOrd for ItemSet {
 }
 
 impl ItemSet {
-    pub fn new(items: Vec<u32>, count: u32) -> ItemSet {
+    pub fn new(items: Vec<Item>, count: u32) -> ItemSet {
         let sorted_items = items.iter().cloned().sorted();
         ItemSet {
             items: sorted_items,
@@ -249,7 +250,7 @@ impl ItemSet {
 pub fn fp_growth(
     fptree: &FPTree,
     min_count: u32,
-    path: &[u32],
+    path: &[Item],
     path_count: u32,
     itemizer: &Itemizer,
 ) -> Vec<ItemSet> {
@@ -263,7 +264,7 @@ pub fn fp_growth(
 
     // Get list of items in the tree which are above the minimum support
     // threshold. Sort the list in increasing order of frequency.
-    let mut items: Vec<u32> = item_index
+    let mut items: Vec<Item> = item_index
         .keys()
         .map(|x| *x)
         .filter(|x| get_item_count(*x, fptree.item_count()) > min_count)
@@ -275,7 +276,7 @@ pub fn fp_growth(
         .flat_map(|item| -> Vec<ItemSet> {
             // The path to here plus this item must be above the minimum
             // support threshold.
-            let mut itemset: Vec<u32> = Vec::from(path);
+            let mut itemset: Vec<Item> = Vec::from(path);
             let new_path_count = cmp::min(path_count, get_item_count(*item, fptree.item_count()));
             itemset.push(*item);
 

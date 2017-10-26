@@ -1,5 +1,6 @@
 #[cfg(test)]
 use itemizer::Itemizer;
+use item::Item;
 
 pub struct Index {
     index: Vec<Vec<usize>>,
@@ -13,25 +14,24 @@ impl Index {
             transaction_count: 0,
         }
     }
-    pub fn insert(&mut self, transaction: &[u32]) {
+    pub fn insert(&mut self, transaction: &[Item]) {
         let tid = self.transaction_count;
         self.transaction_count += 1;
-        for &item_id in transaction {
-            let item_index = item_id as usize;
-            while self.index.len() <= item_index {
+        for &item in transaction {
+            while self.index.len() <= item.as_index() {
                 self.index.push(vec![]);
             }
-            self.index[item_index].push(tid);
+            self.index[item.as_index()].push(tid);
         }
     }
 
-    pub fn count(&self, transaction: &[u32]) -> usize {
+    pub fn count(&self, transaction: &[Item]) -> usize {
         if transaction.is_empty() {
             return 0;
         }
 
         if transaction.len() == 1 {
-            let item_index = transaction[0] as usize;
+            let item_index = transaction[0].as_index();
             if item_index >= self.index.len() {
                 return 0;
             }
@@ -40,8 +40,7 @@ impl Index {
 
         let mut tid_lists: Vec<&Vec<usize>> = vec![];
         for &item in transaction.iter() {
-            let item_index = item as usize;
-            tid_lists.push(&self.index[item_index]);
+            tid_lists.push(&self.index[item.as_index()]);
         }
 
         let mut p: Vec<usize> = vec![0; tid_lists.len()];
@@ -71,7 +70,7 @@ impl Index {
     }
 
     #[allow(dead_code)]
-    pub fn support(&self, transaction: &[u32]) -> f64 {
+    pub fn support(&self, transaction: &[Item]) -> f64 {
         let count = self.count(transaction);
         (count as f64) / (self.transaction_count as f64)
     }
@@ -87,6 +86,7 @@ mod tests {
     fn test_index() {
         use super::Index;
         use super::Itemizer;
+        use super::Item;
 
         let mut index = Index::new();
         let transactions = vec![
@@ -101,7 +101,7 @@ mod tests {
         for line in &transactions {
             let transaction = line.iter()
                 .map(|s| itemizer.id_of(s.trim()))
-                .collect::<Vec<u32>>();
+                .collect::<Vec<Item>>();
             index.insert(&transaction);
         }
 
