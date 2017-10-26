@@ -29,7 +29,6 @@ use command_line_args::parse_args_or_exit;
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufWriter, Write};
-// use std::fs;
 use std::process;
 use std::time::Instant;
 

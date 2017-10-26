@@ -35,7 +35,6 @@ fn union(a: &Vec<Item>, b: &Vec<Item>) -> Vec<Item> {
             c.push(b[bp]);
             bp += 1;
         } else {
-            // a[ap] == b[bp]
             c.push(a[ap]);
             ap += 1;
             bp += 1;
@@ -171,8 +170,6 @@ impl Rule {
         min_confidence: f64,
         min_lift: f64,
     ) -> Option<Rule> {
-        // let antecedent = union(&a.antecedent, &b.antecedent);
-        // let consequent = intersection(&a.consequent, &b.consequent);
         let antecedent = intersection(&a.antecedent, &b.antecedent);
         let consequent = union(&a.consequent, &b.consequent);
         Rule::make(
