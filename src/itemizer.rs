@@ -21,8 +21,10 @@ impl Itemizer {
         }
         let id = self.next_item_id;
         self.next_item_id += 1;
-        self.item_str_to_id.insert(String::from(item), Item::with_id(id));
-        self.item_id_to_str.insert(Item::with_id(id), String::from(item));
+        self.item_str_to_id
+            .insert(String::from(item), Item::with_id(id));
+        self.item_id_to_str
+            .insert(Item::with_id(id), String::from(item));
         Item::with_id(id)
     }
     pub fn str_of(&self, id: Item) -> String {

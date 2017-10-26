@@ -1,5 +1,5 @@
 use item::Item;
-use item_count::ItemCount;
+use counter::Counter;
 use itemizer::Itemizer;
 use rayon::prelude::*;
 use itertools::Itertools;
@@ -32,7 +32,7 @@ impl Hash for FPNode {
 pub struct FPTree {
     root: FPNode,
     num_transactions: u32,
-    item_count: ItemCount,
+    item_count: Counter<Item>,
     node_count: u32,
 }
 
@@ -79,7 +79,7 @@ impl FPNode {
     }
 
     #[allow(dead_code)]
-    fn print(&self, itemizer: &Itemizer, item_count: &ItemCount, level: u32) {
+    fn print(&self, itemizer: &Itemizer, item_count: &Counter<Item>, level: u32) {
         let mut indicies: Vec<usize> = (0..self.children.len()).collect();
         indicies.sort_by(|&a, &b| {
             item_cmp(&self.children[b].item, &self.children[a].item, item_count)
@@ -100,7 +100,7 @@ impl FPTree {
         return FPTree {
             root: root_node,
             num_transactions: 0,
-            item_count: ItemCount::new(),
+            item_count: Counter::new(),
             node_count: 1,
         };
     }
@@ -119,7 +119,7 @@ impl FPTree {
         &self.root
     }
 
-    fn item_count(&self) -> &ItemCount {
+    fn item_count(&self) -> &Counter<Item> {
         &self.item_count
     }
 
@@ -134,7 +134,7 @@ pub enum SortOrder {
     Decreasing,
 }
 
-fn item_cmp(a: &Item, b: &Item, item_count: &ItemCount) -> Ordering {
+fn item_cmp(a: &Item, b: &Item, item_count: &Counter<Item>) -> Ordering {
     let count_a = item_count.get(a);
     let count_b = item_count.get(b);
     if count_a == count_b {
@@ -143,7 +143,7 @@ fn item_cmp(a: &Item, b: &Item, item_count: &ItemCount) -> Ordering {
     count_a.cmp(&count_b)
 }
 
-pub fn sort_transaction(transaction: &mut [Item], item_count: &ItemCount, order: SortOrder) {
+pub fn sort_transaction(transaction: &mut [Item], item_count: &Counter<Item>, order: SortOrder) {
     match order {
         SortOrder::Increasing => transaction.sort_by(|a, b| item_cmp(a, b, item_count)),
         SortOrder::Decreasing => transaction.sort_by(|a, b| item_cmp(b, a, item_count)),

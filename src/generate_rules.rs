@@ -310,7 +310,9 @@ mod tests {
         ];
         let mut itemizer: Itemizer = Itemizer::new();
         for line in &transactions {
-            let transaction = line.iter().map(|s| itemizer.id_of(s)).collect::<Vec<Item>>();
+            let transaction = line.iter()
+                .map(|s| itemizer.id_of(s))
+                .collect::<Vec<Item>>();
             index.insert(&transaction);
         }
 
