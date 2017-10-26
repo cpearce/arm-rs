@@ -1,4 +1,5 @@
 use item::Item;
+use item_count::ItemCount;
 use itemizer::Itemizer;
 use rayon::prelude::*;
 use itertools::Itertools;
@@ -31,7 +32,7 @@ impl Hash for FPNode {
 pub struct FPTree {
     root: FPNode,
     num_transactions: u32,
-    item_count: HashMap<Item, u32>,
+    item_count: ItemCount,
     node_count: u32,
 }
 
@@ -78,7 +79,7 @@ impl FPNode {
     }
 
     #[allow(dead_code)]
-    fn print(&self, itemizer: &Itemizer, item_count: &HashMap<Item, u32>, level: u32) {
+    fn print(&self, itemizer: &Itemizer, item_count: &ItemCount, level: u32) {
         let mut indicies: Vec<usize> = (0..self.children.len()).collect();
         indicies.sort_by(|&a, &b| {
             item_cmp(&self.children[b].item, &self.children[a].item, item_count)
@@ -99,7 +100,7 @@ impl FPTree {
         return FPTree {
             root: root_node,
             num_transactions: 0,
-            item_count: HashMap::new(),
+            item_count: ItemCount::new(),
             node_count: 1,
         };
     }
@@ -108,7 +109,7 @@ impl FPTree {
         // Keep a count of item frequencies of what's in the
         // tree to make sorting later easier.
         for item in transaction {
-            *self.item_count.entry(*item).or_insert(0) += count;
+            self.item_count.add(item, count);
         }
         self.node_count += self.root.insert(&transaction, count, self.node_count);
         self.num_transactions += count;
@@ -118,7 +119,7 @@ impl FPTree {
         &self.root
     }
 
-    fn item_count(&self) -> &HashMap<Item, u32> {
+    fn item_count(&self) -> &ItemCount {
         &self.item_count
     }
 
@@ -128,28 +129,21 @@ impl FPTree {
     }
 }
 
-fn get_item_count(item: Item, item_count: &HashMap<Item, u32>) -> u32 {
-    match item_count.get(&item) {
-        Some(count) => *count,
-        None => 0,
-    }
-}
-
 pub enum SortOrder {
     Increasing,
     Decreasing,
 }
 
-fn item_cmp(a: &Item, b: &Item, item_count: &HashMap<Item, u32>) -> Ordering {
-    let a_count = get_item_count(*a, item_count);
-    let b_count = get_item_count(*b, item_count);
-    if a_count == b_count {
+fn item_cmp(a: &Item, b: &Item, item_count: &ItemCount) -> Ordering {
+    let count_a = item_count.get(a);
+    let count_b = item_count.get(b);
+    if count_a == count_b {
         return a.cmp(b);
     }
-    a_count.cmp(&b_count)
+    count_a.cmp(&count_b)
 }
 
-pub fn sort_transaction(transaction: &mut [Item], item_count: &HashMap<Item, u32>, order: SortOrder) {
+pub fn sort_transaction(transaction: &mut [Item], item_count: &ItemCount, order: SortOrder) {
     match order {
         SortOrder::Increasing => transaction.sort_by(|a, b| item_cmp(a, b, item_count)),
         SortOrder::Decreasing => transaction.sort_by(|a, b| item_cmp(b, a, item_count)),
@@ -266,8 +260,8 @@ pub fn fp_growth(
     // threshold. Sort the list in increasing order of frequency.
     let mut items: Vec<Item> = item_index
         .keys()
-        .map(|x| *x)
-        .filter(|x| get_item_count(*x, fptree.item_count()) > min_count)
+        .cloned()
+        .filter(|item| fptree.item_count().get(item) > min_count)
         .collect();
     sort_transaction(&mut items, fptree.item_count(), SortOrder::Increasing);
 
@@ -277,7 +271,7 @@ pub fn fp_growth(
             // The path to here plus this item must be above the minimum
             // support threshold.
             let mut itemset: Vec<Item> = Vec::from(path);
-            let new_path_count = cmp::min(path_count, get_item_count(*item, fptree.item_count()));
+            let new_path_count = cmp::min(path_count, fptree.item_count().get(&item));
             itemset.push(*item);
 
             let mut result: Vec<ItemSet> = Vec::new();

@@ -5,6 +5,7 @@ extern crate rayon;
 
 mod index;
 mod item;
+mod item_count;
 mod itemizer;
 mod transaction_reader;
 mod fptree;
@@ -13,6 +14,7 @@ mod command_line_args;
 
 use itemizer::Itemizer;
 use item::Item;
+use item_count::ItemCount;
 use transaction_reader::TransactionReader;
 use fptree::FPTree;
 use fptree::sort_transaction;
@@ -24,7 +26,6 @@ use generate_rules::Rule;
 use index::Index;
 use command_line_args::Arguments;
 use command_line_args::parse_args_or_exit;
-use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -34,14 +35,13 @@ use std::time::Instant;
 
 fn count_item_frequencies(
     reader: TransactionReader,
-) -> Result<(HashMap<Item, u32>, usize), Box<Error>> {
-    let mut item_count: HashMap<Item, u32> = HashMap::new();
+) -> Result<(ItemCount, usize), Box<Error>> {
+    let mut item_count = ItemCount::new();
     let mut num_transactions = 0;
     for transaction in reader {
         num_transactions += 1;
-        for item in transaction {
-            let counter = item_count.entry(item).or_insert(0);
-            *counter += 1;
+        for item in transaction.iter() {
+            item_count.add(item, 1);
         }
     }
     Ok((item_count, num_transactions))
@@ -78,10 +78,8 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
         // initial tree.
         let mut filtered_transaction: Vec<Item> = Vec::new();
         for item in transaction {
-            if let Some(&count) = item_count.get(&item) {
-                if count > min_count {
-                    filtered_transaction.push(item);
-                }
+            if item_count.get(&item) > min_count {
+                filtered_transaction.push(item);
             }
         }
         // Note: we deliberately insert even if the transaction is empty to
