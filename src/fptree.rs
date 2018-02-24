@@ -8,13 +8,13 @@ use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::cmp;
 
-
 #[derive(Eq, Debug)]
 struct FPNode {
-    id: u32,
+    id: usize,
     item: Item,
     count: u32,
-    children: Vec<FPNode>,
+    children: Vec<usize>,
+    parent: usize,
 }
 
 impl PartialEq for FPNode {
@@ -30,102 +30,141 @@ impl Hash for FPNode {
 }
 
 pub struct FPTree {
-    root: FPNode,
+    nodes: Vec<Vec<FPNode>>,
     num_transactions: u32,
     item_count: Counter<Item>,
-    node_count: u32,
+    next_node_id: usize,
+    item_lists: HashMap<Item, Vec<usize>>,
 }
 
 impl FPNode {
-    fn new(id: u32, item: Item) -> FPNode {
+    fn new(id: usize, item: Item, parent: usize) -> FPNode {
         FPNode {
-            id: id,
-            item: item,
+            id,
+            item,
             count: 0,
             children: Vec::with_capacity(1),
+            parent,
         }
-    }
-
-    fn insert(&mut self, transaction: &[Item], count: u32, next_node_id: u32) -> u32 {
-        if transaction.len() == 0 {
-            return 0;
-        }
-
-        let item = transaction[0];
-        let mut new_nodes: u32 = 0;
-
-        let index = match self.children
-            .iter()
-            .position(|ref child| child.item == item)
-        {
-            Some(index) => index,
-            None => {
-                self.children.push(FPNode::new(next_node_id, item));
-                new_nodes += 1;
-                self.children.len() - 1
-            }
-        };
-
-        self.children[index].count += count;
-        if transaction.len() > 1 {
-            new_nodes +=
-                self.children[index].insert(&transaction[1..], count, next_node_id + new_nodes);
-        }
-        new_nodes
     }
 
     fn is_root(&self) -> bool {
         self.item.is_null()
     }
-
-    #[allow(dead_code)]
-    fn print(&self, itemizer: &Itemizer, item_count: &Counter<Item>, level: u32) {
-        let mut indicies: Vec<usize> = (0..self.children.len()).collect();
-        indicies.sort_by(|&a, &b| {
-            item_cmp(&self.children[b].item, &self.children[a].item, item_count)
-        });
-        for _ in 0..level {
-            print!("  ");
-        }
-        println!("{}:{}", itemizer.str_of(self.item), self.count);
-        for index in indicies {
-            self.children[index].print(itemizer, item_count, level + 1);
-        }
-    }
 }
 
 impl FPTree {
     pub fn new() -> FPTree {
-        let root_node = FPNode::new(0, Item::null());
-        return FPTree {
-            root: root_node,
+        let mut tree = FPTree {
+            nodes: vec![],
             num_transactions: 0,
             item_count: Counter::new(),
-            node_count: 1,
+            next_node_id: 0,
+            item_lists: HashMap::new(),
         };
+        // Add root.
+        tree.add_node(0, Item::null());
+        return tree;
+    }
+
+    pub fn add_node(&mut self, parent: usize, item: Item) -> usize {
+        let id = self.next_node_id;
+        self.next_node_id += 1;
+        let (cohort, element) = self.sub_indicies_of(id);
+        // Should only be at most 1 element too small.
+        assert!(cohort <= self.nodes.len());
+        if self.nodes.len() <= cohort {
+            self.nodes.push(Vec::with_capacity(1 << 10));
+        }
+        assert!(element == self.nodes[cohort].len());
+        self.nodes[cohort].push(FPNode::new(id, item, parent));
+        assert!(self.get_node(id).item == item);
+        if !item.is_null() {
+            self.item_lists.entry(item).or_insert(vec![]).push(id);
+        }
+        id
+    }
+
+    fn sub_indicies_of(&self, id: usize) -> (usize, usize) {
+        (id / 1024, id % 1024)
+    }
+
+    fn get_node_mut(&mut self, id: usize) -> &mut FPNode {
+        let (cohort, index) = self.sub_indicies_of(id);
+        if cohort >= self.nodes.len() || index >= self.nodes[cohort].len() {
+            panic!("Invalid node id")
+        }
+        &mut self.nodes[cohort][index]
+    }
+
+    fn get_node(&self, id: usize) -> &FPNode {
+        let (cohort, index) = self.sub_indicies_of(id);
+        if cohort >= self.nodes.len() || index >= self.nodes[cohort].len() {
+            panic!("Invalid node id")
+        }
+        &self.nodes[cohort][index]
+    }
+
+    pub fn child_of(&self, id: usize, item: Item) -> Option<usize> {
+        for &node_id in &self.get_node(id).children {
+            if self.get_node(node_id).item == item {
+                return Some(node_id);
+            }
+        }
+        None
+    }
+
+    fn insert_child(&mut self, id: usize, item: Item, count: u32) -> usize {
+        let child_id = match self.child_of(id, item) {
+            Some(child_id) => child_id,
+            None => self.add_node(id, item),
+        };
+        self.get_node_mut(child_id).count += count;
+        child_id
     }
 
     pub fn insert(&mut self, transaction: &[Item], count: u32) {
-        // Keep a count of item frequencies of what's in the
-        // tree to make sorting later easier.
-        for item in transaction {
-            self.item_count.add(item, count);
+        // Start iterating at the root node.
+        let mut id = 0;
+        for &item in transaction {
+            // Keep a count of item frequencies of what's in the
+            // tree to make sorting later easier.
+            self.item_count.add(&item, count);
+            // Add the item to the tree as a child of the previous node.
+            id = self.insert_child(id, item, count);
         }
-        self.node_count += self.root.insert(&transaction, count, self.node_count);
         self.num_transactions += count;
-    }
-
-    fn root(&self) -> &FPNode {
-        &self.root
     }
 
     fn item_count(&self) -> &Counter<Item> {
         &self.item_count
     }
 
-    #[allow(dead_code)]
-    pub fn print(&self, itemizer: &Itemizer) {
-        self.root.print(itemizer, &self.item_count, 0);
+    pub fn construct_conditional_tree(&self, item: Item) -> FPTree {
+        let item_list = &self.item_lists[&item];
+        let mut conditional_tree = FPTree::new();
+        for &node_id in item_list {
+            conditional_tree.insert(
+                &self.path_from_root_to_excluding(node_id),
+                self.get_node(node_id).count,
+            );
+        }
+        conditional_tree
+    }
+
+    fn path_from_root_to_excluding(&self, node_id: usize) -> Vec<Item> {
+        let mut path = vec![];
+        let mut id = self.get_node(node_id).parent;
+        loop {
+            let node = self.get_node(id);
+            if node.is_root() {
+                break;
+            }
+            path.push(node.item);
+            id = node.parent;
+        }
+        path.reverse();
+        path
     }
 }
 
@@ -148,68 +187,6 @@ pub fn sort_transaction(transaction: &mut [Item], item_count: &Counter<Item>, or
         SortOrder::Increasing => transaction.sort_by(|a, b| item_cmp(a, b, item_count)),
         SortOrder::Decreasing => transaction.sort_by(|a, b| item_cmp(b, a, item_count)),
     }
-}
-
-fn add_parents_to_table<'a>(node: &'a FPNode, table: &mut HashMap<&'a FPNode, &'a FPNode>) {
-    for ref child in node.children.iter() {
-        assert!(!table.contains_key(child));
-        table.insert(child, node);
-        add_parents_to_table(child, table)
-    }
-}
-
-fn make_parent_table<'a>(fptree: &'a FPTree) -> HashMap<&'a FPNode, &'a FPNode> {
-    let mut table = HashMap::new();
-    add_parents_to_table(fptree.root(), &mut table);
-    table
-}
-
-fn add_nodes_to_index<'a>(node: &'a FPNode, index: &mut HashMap<Item, Vec<&'a FPNode>>) {
-    for ref child in node.children.iter() {
-        index.entry(child.item).or_insert(vec![]).push(child);
-        add_nodes_to_index(child, index)
-    }
-}
-
-fn make_item_index<'a>(fptree: &'a FPTree) -> HashMap<Item, Vec<&'a FPNode>> {
-    let mut index = HashMap::new();
-    add_nodes_to_index(fptree.root(), &mut index);
-    index
-}
-
-fn path_from_root_to<'a>(
-    node: &'a FPNode,
-    parent_table: &HashMap<&'a FPNode, &'a FPNode>,
-) -> Vec<Item> {
-    let mut path = vec![];
-    let mut n = node;
-    loop {
-        match parent_table.get(n) {
-            Some(parent) if !parent.is_root() => {
-                path.push(parent.item);
-                n = parent;
-                continue;
-            }
-            _ => {
-                break;
-            }
-        }
-    }
-    path.reverse();
-    path
-}
-
-fn construct_conditional_tree<'a>(
-    parent_table: &HashMap<&'a FPNode, &'a FPNode>,
-    item_list: &Vec<&'a FPNode>,
-) -> FPTree {
-    let mut conditional_tree = FPTree::new();
-
-    for node in item_list {
-        let path = path_from_root_to(node, parent_table);
-        conditional_tree.insert(&path, node.count);
-    }
-    conditional_tree
 }
 
 #[derive(Clone, Hash, PartialEq, Eq, Debug, Ord)]
@@ -250,19 +227,9 @@ pub fn fp_growth(
 ) -> Vec<ItemSet> {
     let mut itemsets: Vec<ItemSet> = vec![];
 
-    // Maps a node to its parent.
-    let parent_table = make_parent_table(&fptree);
-
-    // Maps item id to vec of &FPNode's for those items.
-    let item_index = make_item_index(&fptree);
-
     // Get list of items in the tree which are above the minimum support
     // threshold. Sort the list in increasing order of frequency.
-    let mut items: Vec<Item> = item_index
-        .keys()
-        .cloned()
-        .filter(|item| fptree.item_count().get(item) > min_count)
-        .collect();
+    let mut items: Vec<Item> = fptree.item_count().items_with_count_at_least(min_count);
     sort_transaction(&mut items, fptree.item_count(), SortOrder::Increasing);
 
     let x: Vec<ItemSet> = items
@@ -274,19 +241,15 @@ pub fn fp_growth(
             let new_path_count = cmp::min(path_count, fptree.item_count().get(&item));
             itemset.push(*item);
 
-            let mut result: Vec<ItemSet> = Vec::new();
+            let conditional_tree = fptree.construct_conditional_tree(*item);
+            let mut result = fp_growth(
+                &conditional_tree,
+                min_count,
+                &itemset,
+                new_path_count,
+                itemizer,
+            );
 
-            if let Some(item_list) = item_index.get(item) {
-                let conditional_tree = construct_conditional_tree(&parent_table, item_list);
-                let mut y = fp_growth(
-                    &conditional_tree,
-                    min_count,
-                    &itemset,
-                    new_path_count,
-                    itemizer,
-                );
-                result.append(&mut y);
-            };
             result.push(ItemSet::new(itemset, new_path_count));
             result
         })

@@ -26,4 +26,12 @@ where
             None => 0,
         }
     }
+
+    pub fn items_with_count_at_least(&self, min_count: u32) -> Vec<T> {
+        self.counter
+            .keys()
+            .cloned()
+            .filter(|item| self.get(item) > min_count)
+            .collect()
+    }
 }
