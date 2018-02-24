@@ -52,9 +52,9 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
     let start = Instant::now();
     let timer = Instant::now();
     let mut itemizer: Itemizer = Itemizer::new();
-    let (item_count, num_transactions) = count_item_frequencies(
-        TransactionReader::new(&args.input_file_path, &mut itemizer),
-    ).unwrap();
+    let (item_count, num_transactions) =
+        count_item_frequencies(TransactionReader::new(&args.input_file_path, &mut itemizer))
+            .unwrap();
     println!(
         "First pass took {} seconds, num_transactions={}.",
         timer.elapsed().as_secs(),
