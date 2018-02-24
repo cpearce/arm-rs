@@ -168,27 +168,6 @@ impl FPTree {
     }
 }
 
-pub enum SortOrder {
-    Increasing,
-    Decreasing,
-}
-
-fn item_cmp(a: &Item, b: &Item, item_count: &Counter<Item>) -> Ordering {
-    let count_a = item_count.get(a);
-    let count_b = item_count.get(b);
-    if count_a == count_b {
-        return a.cmp(b);
-    }
-    count_a.cmp(&count_b)
-}
-
-pub fn sort_transaction(transaction: &mut [Item], item_count: &Counter<Item>, order: SortOrder) {
-    match order {
-        SortOrder::Increasing => transaction.sort_by(|a, b| item_cmp(a, b, item_count)),
-        SortOrder::Decreasing => transaction.sort_by(|a, b| item_cmp(b, a, item_count)),
-    }
-}
-
 #[derive(Clone, Hash, PartialEq, Eq, Debug, Ord)]
 pub struct ItemSet {
     pub items: Vec<Item>,
@@ -228,9 +207,8 @@ pub fn fp_growth(
     let mut itemsets: Vec<ItemSet> = vec![];
 
     // Get list of items in the tree which are above the minimum support
-    // threshold. Sort the list in increasing order of frequency.
-    let mut items: Vec<Item> = fptree.item_count().items_with_count_at_least(min_count);
-    sort_transaction(&mut items, fptree.item_count(), SortOrder::Increasing);
+    // threshold.
+    let items: Vec<Item> = fptree.item_count().items_with_count_at_least(min_count);
 
     let x: Vec<ItemSet> = items
         .par_iter()

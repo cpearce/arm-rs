@@ -17,9 +17,7 @@ use item::Item;
 use counter::Counter;
 use transaction_reader::TransactionReader;
 use fptree::FPTree;
-use fptree::sort_transaction;
 use fptree::fp_growth;
-use fptree::SortOrder;
 use fptree::ItemSet;
 use generate_rules::generate_rules;
 use generate_rules::Rule;
@@ -86,11 +84,7 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
         if filtered_transaction.is_empty() {
             continue;
         }
-        sort_transaction(
-            &mut filtered_transaction,
-            &item_count,
-            SortOrder::Decreasing,
-        );
+        item_count.sort_descending(&mut filtered_transaction);
         fptree.insert(&filtered_transaction, 1);
     }
     println!(
