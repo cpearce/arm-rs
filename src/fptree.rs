@@ -3,7 +3,6 @@ use counter::Counter;
 use itemizer::Itemizer;
 use rayon::prelude::*;
 use itertools::Itertools;
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::cmp;

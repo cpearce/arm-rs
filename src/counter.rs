@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::cmp;
 use std::hash::Hash;
-use std::cmp::Ordering;
 
 pub struct Counter<T> {
     counter: HashMap<T, u32>,

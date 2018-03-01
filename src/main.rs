@@ -11,6 +11,7 @@ mod transaction_reader;
 mod fptree;
 mod generate_rules;
 mod command_line_args;
+mod rule;
 
 use itemizer::Itemizer;
 use item::Item;
@@ -20,7 +21,7 @@ use fptree::FPTree;
 use fptree::fp_growth;
 use fptree::ItemSet;
 use generate_rules::generate_rules;
-use generate_rules::Rule;
+use rule::Rule;
 use index::Index;
 use command_line_args::Arguments;
 use command_line_args::parse_args_or_exit;
