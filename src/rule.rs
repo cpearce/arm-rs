@@ -6,11 +6,11 @@ use std::collections::HashMap;
 
 #[derive(Clone, Hash, Eq, Debug)]
 pub struct Rule {
-    antecedent: Vec<Item>,
-    consequent: Vec<Item>,
-    confidence: OrderedFloat<f64>,
-    lift: OrderedFloat<f64>,
-    support: OrderedFloat<f64>,
+    pub antecedent: Vec<Item>,
+    pub consequent: Vec<Item>,
+    pub confidence: OrderedFloat<f64>,
+    pub lift: OrderedFloat<f64>,
+    pub support: OrderedFloat<f64>,
 }
 
 impl PartialEq for Rule {
@@ -20,7 +20,31 @@ impl PartialEq for Rule {
 }
 
 // Assumes both itemsets are sorted.
-fn union(a: &Vec<Item>, b: &Vec<Item>) -> Vec<Item> {
+// Returns items in a that are not in b.
+pub fn difference(a: &[Item], b: &[Item]) -> Vec<Item> {
+    let mut c: Vec<Item> = Vec::new();
+    let mut ap = 0;
+    let mut bp = 0;
+    while ap < a.len() && bp < b.len() {
+        if a[ap] < b[bp] {
+            c.push(a[ap]);
+            ap += 1;
+        } else if b[bp] < a[ap] {
+            bp += 1;
+        } else {
+            ap += 1;
+            bp += 1;
+        }
+    }
+    while ap < a.len() {
+        c.push(a[ap]);
+        ap += 1;
+    }
+    c
+}
+
+// Assumes both itemsets are sorted.
+pub fn union(a: &[Item], b: &[Item]) -> Vec<Item> {
     let mut c: Vec<Item> = Vec::new();
     let mut ap = 0;
     let mut bp = 0;
@@ -49,7 +73,7 @@ fn union(a: &Vec<Item>, b: &Vec<Item>) -> Vec<Item> {
 }
 
 // Assumes both itemsets are sorted.
-fn intersection(a: &Vec<Item>, b: &Vec<Item>) -> Vec<Item> {
+pub fn intersection(a: &[Item], b: &[Item]) -> Vec<Item> {
     let mut c: Vec<Item> = Vec::new();
     let mut ap = 0;
     let mut bp = 0;
@@ -193,4 +217,27 @@ impl Rule {
     pub fn union_size(&self) -> usize {
         self.antecedent.len() + self.consequent.len()
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Item;
+    fn to_item_vec(nums: &[u32]) -> Vec<Item> {
+        nums.iter().map(|i| Item::with_id(*i)).collect()
+    }
+
+    #[test]
+    fn test_difference() {
+        use super::difference;
+        assert_eq!(
+            difference(&to_item_vec(&[1, 2, 3, 4, 5]), &to_item_vec(&[4, 5])),
+            to_item_vec(&[1, 2, 3])
+        );
+        assert_eq!(
+            difference(&to_item_vec(&[1, 2, 3, 4, 5]), &to_item_vec(&[4, 5, 6])),
+            to_item_vec(&[1, 2, 3])
+        );
+    }
+
+    //tODO: Test union and intersection!
 }
