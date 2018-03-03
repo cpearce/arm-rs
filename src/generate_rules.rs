@@ -15,6 +15,7 @@ pub fn split_out_item(items: &Vec<Item>, item: Item) -> (Vec<Item>, Vec<Item>) {
 
 struct ConsequentTree {
     children: Vec<ConsequentTree>,
+    rules: Vec<Rule>,
     item: Item,
 }
 
@@ -22,25 +23,30 @@ impl ConsequentTree {
     pub fn new(item: Item) -> ConsequentTree {
         ConsequentTree {
             children: vec![],
+            rules: vec![],
             item: item,
         }
     }
     fn is_leaf(&self) -> bool {
         self.children.is_empty()
     }
-    pub fn insert(&mut self, consequent: &[Item]) {
+    fn insert_rule(&mut self, rule: &Rule) {
+        self.insert(&rule.consequent, rule);
+    }
+    fn insert(&mut self, consequent: &[Item], rule: &Rule) {
         if consequent.is_empty() {
+            self.rules.push(rule.clone());
             return;
         }
         let item = consequent[0];
         for child in self.children.iter_mut() {
             if child.item == item {
-                child.insert(&consequent[1..]);
+                child.insert(&consequent[1..], rule);
                 return;
             }
         }
         let mut child = ConsequentTree::new(item);
-        child.insert(&consequent[1..]);
+        child.insert(&consequent[1..], rule);
         self.children.push(child);
     }
     pub fn generate_candidate_rules(
@@ -78,29 +84,54 @@ impl ConsequentTree {
 
         let leaf_children: Vec<&ConsequentTree> = self.children
             .iter()
-            .filter(|&child| child.is_leaf())
+            .filter(|&child| !child.rules.is_empty())
             .collect();
         for (child1, child2) in leaf_children.iter().tuple_combinations() {
-            let mut consequent = path.clone();
-            if child1.item < child2.item {
-                consequent.push(child1.item);
-                consequent.push(child2.item);
-            } else {
-                consequent.push(child2.item);
-                consequent.push(child1.item);
+            for (r1, r2) in child1.rules.iter().cartesian_product(&child2.rules) {
+                if let Some(rule) = Rule::merge(&r1, &r2, itemset_support, min_confidence, min_lift)
+                {
+                    // Passes confidence and lift threshold, keep rule.
+                    // assert!(!rules.contains(&rule));
+                    rules.insert(rule);
+                }
             }
-            let antecedent = difference(items, &consequent);
-            if let Some(rule) = Rule::make(
-                antecedent,
-                consequent,
-                itemset_support,
+            // let mut consequent = path.clone();
+            // if child1.item < child2.item {
+            //     consequent.push(child1.item);
+            //     consequent.push(child2.item);
+            // } else {
+            //     consequent.push(child2.item);
+            //     consequent.push(child1.item);
+            // }
+            // let antecedent = difference(items, &consequent);
+
+            // if let Some(rule) = Rule::merge(
+            //     &child1.rule,
+            //     &child2.rule,
+            //     itemset_support,
+            //     min_confidence,
+            //     min_lift,
+            // ) {
+            //     // Passes confidence and lift threshold, keep rule.
+            //     // assert!(!rules.contains(&rule));
+            //     rules.insert(rule);
+            // }
+        }
+        if !self.item.is_null() {
+            path.push(self.item);
+        }
+        for ref child in self.children.iter() {
+            child.generate_candidate_rules_recursive(
+                items,
                 min_confidence,
                 min_lift,
-            ) {
-                // Passes confidence and lift threshold, keep rule.
-                assert!(!rules.contains(&rule));
-                rules.insert(rule);
-            }
+                itemset_support,
+                rules,
+                path,
+            );
+        }
+        if !self.item.is_null() {
+            path.pop();
         }
     }
 }
@@ -115,7 +146,7 @@ pub fn generate_itemset_rules(
     let mut rule_tree = ConsequentTree::new(Item::null());
     // let tree_depth = itemset.items.len() - 1;
     for rule in rules.iter() {
-        rule_tree.insert(&rule.consequent);
+        rule_tree.insert(&rule.consequent, &rule);
     }
     rule_tree.generate_candidate_rules(&itemset.items, min_confidence, min_lift, itemset_support)
 }
@@ -134,8 +165,8 @@ pub fn generate_rules(
     }
 
     let rv: Vec<HashSet<Rule>> = itemsets
-        .par_iter()
-        // .iter()
+        // .par_iter()
+        .iter()
         .filter(|i| i.items.len() > 1)
         .map(|ref itemset| {
             let mut rules: HashSet<Rule> = HashSet::new();
@@ -151,7 +182,7 @@ pub fn generate_rules(
                     min_lift,
                 ) {
                     // Passes confidence and lift threshold, keep rule.
-                    assert!(!rules.contains(&rule));
+                    // assert!(!rules.contains(&rule));
                     rules.insert(rule);
                 }
             }
@@ -159,7 +190,7 @@ pub fn generate_rules(
 
             while !candidates.is_empty() {
                 let next_gen = generate_itemset_rules(
-                    itemset, &rules, min_confidence, min_lift, &itemset_support);
+                    itemset, &candidates, min_confidence, min_lift, &itemset_support);
                 for rule in next_gen.iter() {
                     rules.insert(rule.clone());
                 }
@@ -181,16 +212,15 @@ pub fn generate_rules(
 
 #[cfg(test)]
 mod tests {
+    use fptree::ItemSet;
+    use index::Index;
+    use item::Item;
+    use itemizer::Itemizer;
+    use std::collections::HashMap;
+
     #[test]
     fn test_index() {
-        use index::Index;
-        use super::ItemSet;
-        use item::Item;
-        use itemizer::Itemizer;
-        use std::collections::HashMap;
-
         // HARM's census2.csv test dataset.
-
         // Load entire dataset into index.
         let mut index = Index::new();
         let transactions = vec![
@@ -314,5 +344,125 @@ mod tests {
         for count in expected_rules.values() {
             assert_eq!(*count, 1);
         }
+    }
+
+    fn to_item_vec(nums: &[u32]) -> Vec<Item> {
+        nums.iter().map(|&i| Item::with_id(i)).collect()
+    }
+
+    #[test]
+    fn test_kosarak() {
+        // // Kosarak's itemsets with minsup=0.05, minconf=0.05.
+        // // 990002 transactions.
+        // let kosarak : Vec<ItemSet> = [
+        //     (vec![1,6,11], 86092),
+        //     (vec![1,11], 91882),
+        //     (vec![1,3,6], 57802),
+        //     (vec![1,3], 84660),
+        //     (vec![1,6], 132113),
+        //     (vec![1], 197522),
+        //     (vec![55], 65412),
+        //     (vec![4], 78097),
+        //     (vec![6], 601374),
+        //     (vec![3,6,11], 143682),
+        //     (vec![3,11], 161286),
+        //     (vec![6,11], 324013),
+        //     (vec![11], 364065),
+        //     (vec![6,148,218], 56838),
+        //     (vec![6,11,148,218], 49866),
+        //     (vec![11,148,218], 50098),
+        //     (vec![148,218], 58823),
+        //     (vec![6,11,148], 55230),
+        //     (vec![11,148], 55759),
+        //     (vec![6,148], 64750),
+        //     (vec![148], 69922),
+        //     (vec![6,11,218], 60630),
+        //     (vec![11,218], 61656),
+        //     (vec![6,218], 77675),
+        //     (vec![218], 88598),
+        //     (vec![6,7,11], 55835),
+        //     (vec![7,11], 57074),
+        //     (vec![6,7], 73610),
+        //     (vec![7], 86898),
+        //     (vec![3,6], 265180),
+        //     (vec![3], 450031),
+        //     (vec![6,27], 59418),
+        //     (vec![27], 72134),
+        // ].iter().map(|&(ref i, c)| ItemSet::new(to_item_vec(&i), c)).collect();
+
+        // let expected_rules: HashMap<&str, u32> = [
+        //     ("1 11 ==> 6", 86092),
+        //     ("1 6 ==> 11", 86092),
+        //     ("11 148 218 ==> 6", 49866),
+        //     ("11 148 ==> 218", 50098),
+        //     ("11 148 ==> 6", 55230),
+        //     ("11 148 ==> 6 218", 49866),
+        //     ("11 218 ==> 148", 50098),
+        //     ("11 218 ==> 6", 60630),
+        //     ("11 218 ==> 6 148", 49866),
+        //     ("11 ==> 148", 55759),
+        //     ("11 ==> 148 218", 50098),
+        //     ("11 ==> 218", 61656),
+        //     ("11 ==> 6 148", 55230),
+        //     ("11 ==> 6 148 218", 49866),
+        //     ("11 ==> 6 218", 60630),
+        //     ("11 ==> 6 7", 55835),
+        //     ("11 ==> 7", 57074),
+        //     ("148 218 ==> 11", 50098),
+        //     ("148 218 ==> 6", 56838),
+        //     ("148 218 ==> 6 11", 49866),
+        //     ("148 ==> 11", 55759),
+        //     ("148 ==> 11 218", 50098),
+        //     ("148 ==> 218", 58823),
+        //     ("148 ==> 6", 64750),
+        //     ("148 ==> 6 11", 55230),
+        //     ("148 ==> 6 11 218", 49866),
+        //     ("148 ==> 6 218", 56838),
+        //     ("218 ==> 11", 61656),
+        //     ("218 ==> 11 148", 50098),
+        //     ("218 ==> 148", 58823),
+        //     ("218 ==> 6 11", 60630),
+        //     ("218 ==> 6 11 148", 49866),
+        //     ("218 ==> 6 148", 56838),
+        //     ("6 11 148 ==> 218", 49866),
+        //     ("6 11 218 ==> 148", 49866),
+        //     ("6 11 ==> 148", 55230),
+        //     ("6 11 ==> 148 218", 49866),
+        //     ("6 11 ==> 218", 60630),
+        //     ("6 11 ==> 7", 55835),
+        //     ("6 148 218 ==> 11", 49866),
+        //     ("6 148 ==> 11", 55230),
+        //     ("6 148 ==> 11 218", 49866),
+        //     ("6 148 ==> 218", 56838),
+        //     ("6 218 ==> 11", 60630),
+        //     ("6 218 ==> 11 148", 49866),
+        //     ("6 218 ==> 148", 56838),
+        //     ("6 7 ==> 11", 55835),
+        //     ("6 ==> 11 148", 55230),
+        //     ("6 ==> 11 148 218", 49866),
+        //     ("6 ==> 11 218", 60630),
+        //     ("6 ==> 148", 64750),
+        //     ("6 ==> 148 218", 56838),
+        //     ("6 ==> 7 11", 55835),
+        //     ("7 11 ==> 6", 55835),
+        //     ("7 ==> 11", 57074),
+        //     ("7 ==> 6 11", 55835),
+        // ].iter()
+        //     .cloned()
+        //     .collect();
+
+        // let rules = super::generate_rules(&kosarak, 990002, 0.05, 1.5);
+
+        // assert_eq!(rules.len(), expected_rules.len());
+
+        // for rule_str in rules.iter().map(|r| r.to_string(&itemizer)) {
+        //     assert_eq!(expected_rules.contains_key::<str>(&rule_str), true);
+        //     if let Some(count) = expected_rules.get_mut::<str>(&rule_str) {
+        //         *count += 1;
+        //     }
+        // }
+
+        // TODO: I dont' have an itemizer to make the above test work.
+
     }
 }
