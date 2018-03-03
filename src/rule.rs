@@ -92,43 +92,11 @@ pub fn intersection(a: &[Item], b: &[Item]) -> Vec<Item> {
     c
 }
 
-// If all items in the itemset convert to an integer, order by that integer,
-// otherwise order lexicographically.
-fn ensure_sorted(a: &mut Vec<String>) {
-    let all_items_convert_to_ints = a.iter().all(|ref x| match x.parse::<u32>() {
-        Ok(_) => true,
-        Err(_) => false,
-    });
-    if all_items_convert_to_ints {
-        a.sort_by(|ref x, ref y| {
-            let _x = match x.parse::<u32>() {
-                Ok(i) => i,
-                Err(_) => 0,
-            };
-            let _y = match y.parse::<u32>() {
-                Ok(i) => i,
-                Err(_) => 0,
-            };
-            _x.cmp(&_y)
-        });
-    } else {
-        a.sort();
-    }
-}
-
 impl Rule {
     pub fn to_string(&self, itemizer: &Itemizer) -> String {
-        let mut a: Vec<String> = self.antecedent
-            .iter()
-            .map(|&id| itemizer.str_of(id))
-            .collect();
-        ensure_sorted(&mut a);
-        let mut b: Vec<String> = self.consequent
-            .iter()
-            .map(|&id| itemizer.str_of(id))
-            .collect();
-        ensure_sorted(&mut b);
-        [a.join(" "), " ==> ".to_owned(), b.join(" ")].join("")
+        let a = Item::item_vec_to_string(&self.antecedent, itemizer);
+        let c = Item::item_vec_to_string(&self.consequent, itemizer);
+        [a, " ==> ".to_owned(), c].join("")
     }
 
     // Creates a new Rule from (antecedent,consequent) if the rule
