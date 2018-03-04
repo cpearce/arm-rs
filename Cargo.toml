@@ -9,5 +9,5 @@ itertools = "0.6.1"
 argparse = "*"
 ordered-float = "0.5.0"
 
-#[profile.release]
-#debug = true
+[profile.release]
+debug = true
