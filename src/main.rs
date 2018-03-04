@@ -109,13 +109,6 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
         timer.elapsed().as_secs()
     );
 
-    for ref pattern in patterns.iter() {
-        assert_eq!(
-            pattern.count as f64 / num_transactions as f64,
-            index.support(&pattern.items)
-        );
-    }
-
     println!("Generating rules...");
     let timer = Instant::now();
     let rules: Vec<Rule> = generate_rules(
