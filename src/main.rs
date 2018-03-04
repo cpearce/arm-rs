@@ -5,7 +5,7 @@ extern crate rayon;
 
 mod index;
 mod item;
-mod counter;
+mod item_counter;
 mod itemizer;
 mod transaction_reader;
 mod fptree;
@@ -15,7 +15,7 @@ mod rule;
 
 use itemizer::Itemizer;
 use item::Item;
-use counter::Counter;
+use item_counter::ItemCounter;
 use transaction_reader::TransactionReader;
 use fptree::FPTree;
 use fptree::fp_growth;
@@ -31,8 +31,8 @@ use std::io::{BufWriter, Write};
 use std::process;
 use std::time::Instant;
 
-fn count_item_frequencies(reader: TransactionReader) -> Result<(Counter<Item>, usize), Box<Error>> {
-    let mut item_count: Counter<Item> = Counter::new();
+fn count_item_frequencies(reader: TransactionReader) -> Result<(ItemCounter, usize), Box<Error>> {
+    let mut item_count: ItemCounter = ItemCounter::new();
     let mut num_transactions = 0;
     for transaction in reader {
         num_transactions += 1;

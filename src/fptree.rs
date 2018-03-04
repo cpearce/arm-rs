@@ -1,5 +1,5 @@
 use item::Item;
-use counter::Counter;
+use item_counter::ItemCounter;
 use itemizer::Itemizer;
 use rayon::prelude::*;
 use itertools::Itertools;
@@ -31,7 +31,7 @@ impl Hash for FPNode {
 pub struct FPTree {
     nodes: Vec<Vec<FPNode>>,
     num_transactions: u32,
-    item_count: Counter<Item>,
+    item_count: ItemCounter,
     next_node_id: usize,
     item_lists: Vec<Vec<usize>>,
 }
@@ -57,7 +57,7 @@ impl FPTree {
         let mut tree = FPTree {
             nodes: vec![],
             num_transactions: 0,
-            item_count: Counter::new(),
+            item_count: ItemCounter::new(),
             next_node_id: 0,
             item_lists: Vec::new(),
         };
@@ -145,7 +145,7 @@ impl FPTree {
         self.num_transactions += count;
     }
 
-    fn item_count(&self) -> &Counter<Item> {
+    fn item_count(&self) -> &ItemCounter {
         &self.item_count
     }
 
