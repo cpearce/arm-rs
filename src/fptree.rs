@@ -78,6 +78,7 @@ impl FPTree {
         assert!(element == self.nodes[cohort].len());
         self.nodes[cohort].push(FPNode::new(id, item, parent));
         assert!(self.get_node(id).item == item);
+        self.get_node_mut(parent).children.push(id);
         self.add_to_item_list(item, id);
         id
     }
