@@ -33,7 +33,7 @@ pub struct FPTree {
     num_transactions: u32,
     item_count: Counter<Item>,
     next_node_id: usize,
-    item_lists: HashMap<Item, Vec<usize>>,
+    item_lists: Vec<Vec<usize>>,
 }
 
 impl FPNode {
@@ -59,7 +59,7 @@ impl FPTree {
             num_transactions: 0,
             item_count: Counter::new(),
             next_node_id: 0,
-            item_lists: HashMap::new(),
+            item_lists: Vec::new(),
         };
         // Add root.
         tree.add_node(0, Item::null());
@@ -78,10 +78,19 @@ impl FPTree {
         assert!(element == self.nodes[cohort].len());
         self.nodes[cohort].push(FPNode::new(id, item, parent));
         assert!(self.get_node(id).item == item);
-        if !item.is_null() {
-            self.item_lists.entry(item).or_insert(vec![]).push(id);
-        }
+        self.add_to_item_list(item, id);
         id
+    }
+
+    fn add_to_item_list(&mut self, item: Item, id: usize) {
+        if item.is_null() {
+            return;
+        }
+        let index = item.as_index();
+        if index >= self.item_lists.len() {
+            self.item_lists.resize(index + 1, vec![]);
+        }
+        self.item_lists[index].push(id);
     }
 
     fn sub_indicies_of(&self, id: usize) -> (usize, usize) {
@@ -140,7 +149,7 @@ impl FPTree {
     }
 
     pub fn construct_conditional_tree(&self, item: Item) -> FPTree {
-        let item_list = &self.item_lists[&item];
+        let item_list = &self.item_lists[item.as_index()];
         let mut conditional_tree = FPTree::new();
         for &node_id in item_list {
             conditional_tree.insert(
