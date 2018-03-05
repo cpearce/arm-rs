@@ -20,30 +20,6 @@ impl PartialEq for Rule {
 }
 
 // Assumes both itemsets are sorted.
-// Returns items in a that are not in b.
-pub fn difference(a: &[Item], b: &[Item]) -> Vec<Item> {
-    let mut c: Vec<Item> = Vec::new();
-    let mut ap = 0;
-    let mut bp = 0;
-    while ap < a.len() && bp < b.len() {
-        if a[ap] < b[bp] {
-            c.push(a[ap]);
-            ap += 1;
-        } else if b[bp] < a[ap] {
-            bp += 1;
-        } else {
-            ap += 1;
-            bp += 1;
-        }
-    }
-    while ap < a.len() {
-        c.push(a[ap]);
-        ap += 1;
-    }
-    c
-}
-
-// Assumes both itemsets are sorted.
 pub fn union(a: &[Item], b: &[Item]) -> Vec<Item> {
     let mut c: Vec<Item> = Vec::new();
     let mut ap = 0;
@@ -180,10 +156,6 @@ impl Rule {
 
     pub fn support(&self) -> f64 {
         self.support.into()
-    }
-
-    pub fn union_size(&self) -> usize {
-        self.antecedent.len() + self.consequent.len()
     }
 }
 
