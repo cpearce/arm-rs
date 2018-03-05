@@ -1,18 +1,14 @@
 use item::Item;
 
 pub struct ItemCounter {
-    counter: Vec<u32>
+    counter: Vec<u32>,
 }
 
-impl ItemCounter
-{
+impl ItemCounter {
     pub fn new() -> ItemCounter {
-        ItemCounter {
-            counter: vec![],
-        }
+        ItemCounter { counter: vec![] }
     }
     pub fn add(&mut self, item: &Item, count: u32) {
-        // *self.counter.entry(*item).or_insert(0) += count;
         let index = item.as_index();
         if self.counter.len() <= index {
             self.counter.resize(index + 1, 0);
@@ -28,7 +24,7 @@ impl ItemCounter
         }
     }
     pub fn items_with_count_at_least(&self, min_count: u32) -> Vec<Item> {
-        let mut v : Vec<Item> = vec![];
+        let mut v: Vec<Item> = vec![];
         for i in 1..self.counter.len() {
             if self.counter[i] >= min_count {
                 v.push(Item::with_id(i as u32));
