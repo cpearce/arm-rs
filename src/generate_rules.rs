@@ -5,7 +5,6 @@ use std::collections::HashSet;
 use std::collections::HashMap;
 use fptree::ItemSet;
 use rule::Rule;
-use rule::{difference, intersection, union};
 
 pub fn split_out_item(items: &Vec<Item>, item: Item) -> (Vec<Item>, Vec<Item>) {
     let antecedent: Vec<Item> = items.iter().filter(|&&x| x != item).cloned().collect();
@@ -29,9 +28,6 @@ impl ConsequentTree {
     }
     fn is_leaf(&self) -> bool {
         self.children.is_empty()
-    }
-    fn insert_rule(&mut self, rule: &Rule) {
-        self.insert(&rule.consequent, rule);
     }
     fn insert(&mut self, consequent: &[Item], rule: &Rule) {
         if consequent.is_empty() {
@@ -81,45 +77,27 @@ impl ConsequentTree {
         if self.is_leaf() {
             return;
         }
-
+        // Filter out this node's children which store rules.
         let leaf_children: Vec<&ConsequentTree> = self.children
             .iter()
             .filter(|&child| !child.rules.is_empty())
             .collect();
+        // Foreach possible combination of two leaf children.
         for (child1, child2) in leaf_children.iter().tuple_combinations() {
+            // Try merging each of those children's leaves.
             for (r1, r2) in child1.rules.iter().cartesian_product(&child2.rules) {
                 if let Some(rule) = Rule::merge(&r1, &r2, itemset_support, min_confidence, min_lift)
                 {
                     // Passes confidence and lift threshold, keep rule.
-                    // assert!(!rules.contains(&rule));
                     rules.insert(rule);
                 }
             }
-            // let mut consequent = path.clone();
-            // if child1.item < child2.item {
-            //     consequent.push(child1.item);
-            //     consequent.push(child2.item);
-            // } else {
-            //     consequent.push(child2.item);
-            //     consequent.push(child1.item);
-            // }
-            // let antecedent = difference(items, &consequent);
-
-            // if let Some(rule) = Rule::merge(
-            //     &child1.rule,
-            //     &child2.rule,
-            //     itemset_support,
-            //     min_confidence,
-            //     min_lift,
-            // ) {
-            //     // Passes confidence and lift threshold, keep rule.
-            //     // assert!(!rules.contains(&rule));
-            //     rules.insert(rule);
-            // }
         }
+        // Push out item into the consequent path.
         if !self.item.is_null() {
             path.push(self.item);
         }
+        // Recurse onto each child.
         for ref child in self.children.iter() {
             child.generate_candidate_rules_recursive(
                 items,
@@ -130,6 +108,7 @@ impl ConsequentTree {
                 path,
             );
         }
+        // Undo the consequent push; backtrack.
         if !self.item.is_null() {
             path.pop();
         }
@@ -143,8 +122,10 @@ pub fn generate_itemset_rules(
     min_lift: f64,
     itemset_support: &HashMap<Vec<Item>, f64>,
 ) -> HashSet<Rule> {
+    // Build a trie of all the consequents. The consequents are sorted. So
+    // we can use the overlap in the trie branches in order to only attempt
+    // to merge rules which have overlapping consequents.
     let mut rule_tree = ConsequentTree::new(Item::null());
-    // let tree_depth = itemset.items.len() - 1;
     for rule in rules.iter() {
         rule_tree.insert(&rule.consequent, &rule);
     }
@@ -165,12 +146,10 @@ pub fn generate_rules(
     }
 
     let rv: Vec<HashSet<Rule>> = itemsets
-        // .par_iter()
-        .iter()
+        .par_iter()
         .filter(|i| i.items.len() > 1)
         .map(|ref itemset| {
             let mut rules: HashSet<Rule> = HashSet::new();
-            // let mut candidates: Vec<Rule> = Vec::new();
             // First level candidates are all the rules with consequents of size 1.
             for &item in itemset.items.iter() {
                 let (antecedent, consequent) = split_out_item(&itemset.items, item);
@@ -182,15 +161,18 @@ pub fn generate_rules(
                     min_lift,
                 ) {
                     // Passes confidence and lift threshold, keep rule.
-                    // assert!(!rules.contains(&rule));
                     rules.insert(rule);
                 }
             }
             let mut candidates = rules.clone();
-
             while !candidates.is_empty() {
                 let next_gen = generate_itemset_rules(
-                    itemset, &candidates, min_confidence, min_lift, &itemset_support);
+                    itemset,
+                    &candidates,
+                    min_confidence,
+                    min_lift,
+                    &itemset_support,
+                );
                 for rule in next_gen.iter() {
                     rules.insert(rule.clone());
                 }
