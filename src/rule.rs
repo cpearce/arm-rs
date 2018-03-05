@@ -59,8 +59,7 @@ pub fn intersection(a: &[Item], b: &[Item]) -> Vec<Item> {
         } else if b[bp] < a[ap] {
             bp += 1;
         } else {
-            // a[ap] == b[bp]
-            c.push(a[ap]);
+             c.push(a[ap]);
             ap += 1;
             bp += 1;
         }
@@ -167,17 +166,39 @@ mod tests {
     }
 
     #[test]
-    fn test_difference() {
-        use super::difference;
-        assert_eq!(
-            difference(&to_item_vec(&[1, 2, 3, 4, 5]), &to_item_vec(&[4, 5])),
-            to_item_vec(&[1, 2, 3])
-        );
-        assert_eq!(
-            difference(&to_item_vec(&[1, 2, 3, 4, 5]), &to_item_vec(&[4, 5, 6])),
-            to_item_vec(&[1, 2, 3])
-        );
+    fn test_union() {
+        use super::union;
+
+        let test_cases: Vec<(Vec<Item>, Vec<Item>, Vec<Item>)> = [
+            (vec![1, 2, 3], vec![4, 5, 6], vec![1, 2, 3, 4, 5, 6]),
+            (vec![1, 2, 3], vec![3, 4, 5, 6], vec![1, 2, 3, 4, 5, 6]),
+            (vec![], vec![1], vec![1]),
+            (vec![1], vec![], vec![1]),
+        ].iter()
+            .map(|&(ref a, ref b, ref u)| (to_item_vec(a), to_item_vec(b), to_item_vec(u)))
+            .collect();
+
+        for &(ref a, ref b, ref c) in &test_cases {
+            assert_eq!(&union(&a, &b), c);
+        }
     }
 
-    //tODO: Test union and intersection!
+    #[test]
+    fn test_intersection() {
+        use super::intersection;
+
+        let test_cases: Vec<(Vec<Item>, Vec<Item>, Vec<Item>)> = [
+            (vec![1], vec![1], vec![1]),
+            (vec![1, 2, 3, 4, 5], vec![4, 5, 6], vec![4, 5]),
+            (vec![1, 2, 3], vec![3, 4, 5, 6], vec![3]),
+            (vec![], vec![1], vec![]),
+            (vec![1], vec![], vec![]),
+        ].iter()
+            .map(|&(ref a, ref b, ref u)| (to_item_vec(a), to_item_vec(b), to_item_vec(u)))
+            .collect();
+
+        for &(ref a, ref b, ref c) in &test_cases {
+            assert_eq!(&intersection(&a, &b), c);
+        }
+    }
 }
