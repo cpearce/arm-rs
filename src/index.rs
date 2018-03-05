@@ -74,7 +74,6 @@ impl Index {
         let count = self.count(transaction);
         (count as f64) / (self.transaction_count as f64)
     }
-
 }
 
 #[cfg(test)]

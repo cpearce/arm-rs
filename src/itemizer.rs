@@ -33,8 +33,4 @@ impl Itemizer {
             _ => String::from("Unknown"),
         }
     }
-    #[cfg(test)]
-    pub fn to_id_vec(&mut self, vec_of_str: &[&str]) -> Vec<Item> {
-        vec_of_str.iter().map(|s| self.id_of(s)).collect()
-    }
 }
