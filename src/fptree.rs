@@ -52,6 +52,8 @@ impl FPNode {
     }
 }
 
+static FPTREE_SPLAY: usize = 32;
+
 impl FPTree {
     pub fn new() -> FPTree {
         let mut tree = FPTree {
@@ -73,7 +75,7 @@ impl FPTree {
         // Should only be at most 1 element too small.
         assert!(cohort <= self.nodes.len());
         if self.nodes.len() <= cohort {
-            self.nodes.push(Vec::with_capacity(1 << 10));
+            self.nodes.push(Vec::with_capacity(FPTREE_SPLAY));
         }
         assert!(element == self.nodes[cohort].len());
         self.nodes[cohort].push(FPNode::new(id, item, parent));
@@ -95,7 +97,7 @@ impl FPTree {
     }
 
     fn sub_indicies_of(&self, id: usize) -> (usize, usize) {
-        (id / 1024, id % 1024)
+        (id / FPTREE_SPLAY, id % FPTREE_SPLAY)
     }
 
     fn get_node_mut(&mut self, id: usize) -> &mut FPNode {
