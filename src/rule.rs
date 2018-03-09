@@ -59,7 +59,7 @@ pub fn intersection(a: &[Item], b: &[Item]) -> Vec<Item> {
         } else if b[bp] < a[ap] {
             bp += 1;
         } else {
-             c.push(a[ap]);
+            c.push(a[ap]);
             ap += 1;
             bp += 1;
         }
