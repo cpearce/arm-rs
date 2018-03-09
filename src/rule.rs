@@ -1,5 +1,4 @@
 use item::Item;
-use itemizer::Itemizer;
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
 use std::collections::HashMap;
@@ -68,12 +67,6 @@ pub fn intersection(a: &[Item], b: &[Item]) -> Vec<Item> {
 }
 
 impl Rule {
-    pub fn to_string(&self, itemizer: &Itemizer) -> String {
-        let a = Item::item_vec_to_string(&self.antecedent, itemizer);
-        let c = Item::item_vec_to_string(&self.consequent, itemizer);
-        [a, " ==> ".to_owned(), c].join("")
-    }
-
     // Creates a new Rule from (antecedent,consequent) if the rule
     // would be above the min_confidence threshold.
     pub fn make(
