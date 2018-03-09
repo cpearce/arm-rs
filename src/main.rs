@@ -147,9 +147,13 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
             )?;
         }
     }
+    let file_size = std::fs::metadata(&args.output_rules_path)?.len();
+    let elapsed_ms = duration_as_ms(&timer.elapsed());
     println!(
-        "Wrote rules to disk in {} ms.",
-        duration_as_ms(&timer.elapsed())
+        "Wrote rules to disk in {} ms into file of {} bytes; {:.1} MB/s.",
+        elapsed_ms,
+        file_size,
+        (file_size as f64 / (elapsed_ms as f64 / 1000.0)) / 1_000_000.0
     );
 
     println!("Total runtime: {} ms", duration_as_ms(&start.elapsed()));
