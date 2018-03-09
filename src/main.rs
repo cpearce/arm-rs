@@ -29,7 +29,7 @@ use std::error::Error;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::process;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 fn count_item_frequencies(reader: TransactionReader) -> Result<(ItemCounter, usize), Box<Error>> {
     let mut item_count: ItemCounter = ItemCounter::new();
@@ -41,6 +41,10 @@ fn count_item_frequencies(reader: TransactionReader) -> Result<(ItemCounter, usi
         }
     }
     Ok((item_count, num_transactions))
+}
+
+fn duration_as_ms(duration: &Duration) -> u64 {
+    (duration.as_secs() * 1_000 as u64) + (duration.subsec_nanos() / 1_000_000) as u64
 }
 
 fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
@@ -55,8 +59,8 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
         count_item_frequencies(TransactionReader::new(&args.input_file_path, &mut itemizer))
             .unwrap();
     println!(
-        "First pass took {} seconds, num_transactions={}.",
-        timer.elapsed().as_secs(),
+        "First pass took {} ms, num_transactions={}.",
+        duration_as_ms(&timer.elapsed()),
         num_transactions
     );
 
@@ -89,8 +93,8 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
         fptree.insert(&filtered_transaction, 1);
     }
     println!(
-        "Building initial FPTree took {} seconds.",
-        timer.elapsed().as_secs()
+        "Building initial FPTree took {} ms.",
+        duration_as_ms(&timer.elapsed())
     );
 
     println!("Starting recursive FPGrowth...");
@@ -104,9 +108,9 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
     );
 
     println!(
-        "FPGrowth generated {} frequent itemsets in {} seconds.",
+        "FPGrowth generated {} frequent itemsets in {} ms.",
         patterns.len(),
-        timer.elapsed().as_secs()
+        duration_as_ms(&timer.elapsed())
     );
 
     println!("Generating rules...");
@@ -120,9 +124,9 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
         .cloned()
         .collect();
     println!(
-        "Generated {} rules in {} seconds, writing to disk.",
+        "Generated {} rules in {} ms, writing to disk.",
         rules.len(),
-        timer.elapsed().as_secs()
+        duration_as_ms(&timer.elapsed())
     );
 
     let timer = Instant::now();
@@ -144,11 +148,11 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
         }
     }
     println!(
-        "Wrote rules to disk in {} seconds.",
-        timer.elapsed().as_secs()
+        "Wrote rules to disk in {} ms.",
+        duration_as_ms(&timer.elapsed())
     );
 
-    println!("Total runtime: {} seconds", start.elapsed().as_secs());
+    println!("Total runtime: {} ms", duration_as_ms(&start.elapsed()));
 
     Ok(())
 }
