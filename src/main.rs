@@ -55,13 +55,21 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
     let start = Instant::now();
     let timer = Instant::now();
     let mut itemizer: Itemizer = Itemizer::new();
-    let (item_count, num_transactions) =
+    let (mut item_count, num_transactions) =
         count_item_frequencies(TransactionReader::new(&args.input_file_path, &mut itemizer))
             .unwrap();
     println!(
         "First pass took {} ms, num_transactions={}.",
         duration_as_ms(&timer.elapsed()),
         num_transactions
+    );
+
+    println!("Reordering itemizer lexicographically...");
+    let timer = Instant::now();
+    itemizer.reorder_sorted(&mut item_count);
+    println!(
+        "Reordered itemizer in {} ms.",
+        duration_as_ms(&timer.elapsed())
     );
 
     println!("Building initial FPTree based on item frequencies...");

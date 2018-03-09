@@ -23,6 +23,13 @@ impl ItemCounter {
             self.counter[index]
         }
     }
+    pub fn set(&mut self, item: &Item, count: u32) {
+        let index = item.as_index();
+        if self.counter.len() <= index {
+            self.counter.resize(index + 1, 0);
+        }
+        self.counter[index] = count;
+    }
     pub fn items_with_count_at_least(&self, min_count: u32) -> Vec<Item> {
         let mut v: Vec<Item> = vec![];
         for i in 1..self.counter.len() {
@@ -31,6 +38,9 @@ impl ItemCounter {
             }
         }
         v
+    }
+    pub fn take(&mut self, other: ItemCounter) {
+        self.counter = other.counter;
     }
     pub fn sort_descending(&self, v: &mut Vec<Item>) {
         v.sort_by(|a, b| {

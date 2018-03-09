@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use item::Item;
+use item_counter::ItemCounter;
 
 pub struct Itemizer {
     next_item_id: u32,
@@ -30,5 +31,17 @@ impl Itemizer {
     }
     pub fn str_of(&self, id: Item) -> &str {
         &self.item_id_to_str[id.as_index() - 1]
+    }
+    pub fn reorder_sorted(&mut self, item_count: &mut ItemCounter) {
+        self.item_id_to_str.sort();
+        let mut sorted_counter = ItemCounter::new();
+        for (index, item_str) in self.item_id_to_str.iter().enumerate() {
+            let new_id = Item::with_id((index + 1) as u32);
+            let old_id = self.item_str_to_id[item_str];
+            let count = item_count.get(&old_id);
+            sorted_counter.set(&new_id, count);
+            self.item_str_to_id.insert(item_str.clone(), new_id);
+        }
+        item_count.take(sorted_counter);
     }
 }
