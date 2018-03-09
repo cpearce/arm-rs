@@ -130,23 +130,7 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
     );
 
     let timer = Instant::now();
-    {
-        let mut output = BufWriter::new(File::create(&args.output_rules_path).unwrap());
-        writeln!(
-            output,
-            "Antecedent => Consequent, Confidence, Lift, Support"
-        )?;
-        for rule in rules {
-            writeln!(
-                output,
-                "{}, {}, {}, {}",
-                rule.to_string(&itemizer),
-                rule.confidence(),
-                rule.lift(),
-                rule.support(),
-            )?;
-        }
-    }
+    write_rules(&rules, &args.output_rules_path, &itemizer)?;
     let file_size = std::fs::metadata(&args.output_rules_path)?.len();
     let elapsed_ms = duration_as_ms(&timer.elapsed());
     println!(
@@ -158,6 +142,48 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
 
     println!("Total runtime: {} ms", duration_as_ms(&start.elapsed()));
 
+    Ok(())
+}
+
+fn write_rules(
+    rules: &Vec<Rule>,
+    output_rules_path: &str,
+    itemizer: &Itemizer,
+) -> Result<(), Box<Error>> {
+    let mut output = BufWriter::new(File::create(output_rules_path)?);
+    writeln!(
+        output,
+        "Antecedent => Consequent, Confidence, Lift, Support"
+    )?;
+    for rule in rules {
+        write_item_slice(&mut output, &rule.antecedent, &itemizer)?;
+        write!(output, " => ")?;
+        write_item_slice(&mut output, &rule.consequent, &itemizer)?;
+        writeln!(
+            output,
+            ", {}, {}, {}",
+            rule.confidence(),
+            rule.lift(),
+            rule.support(),
+        )?;
+    }
+    Ok(())
+}
+
+fn write_item_slice(
+    output: &mut BufWriter<File>,
+    items: &[Item],
+    itemizer: &Itemizer,
+) -> Result<(), Box<Error>> {
+    let mut first = true;
+    for item in items.iter().map(|&id| itemizer.str_of(id)) {
+        if !first {
+            write!(output, " ")?;
+        } else {
+            first = false;
+        }
+        output.write(item.as_bytes())?;
+    }
     Ok(())
 }
 
