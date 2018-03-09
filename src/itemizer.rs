@@ -27,10 +27,10 @@ impl Itemizer {
             .insert(Item::with_id(id), String::from(item));
         Item::with_id(id)
     }
-    pub fn str_of(&self, id: Item) -> String {
+    pub fn str_of(&self, id: Item) -> &str {
         match self.item_id_to_str.get(&id) {
-            Some(s) => s.clone(),
-            _ => String::from("Unknown"),
+            Some(s) => &s,
+            _ => &"Unknown",
         }
     }
 }

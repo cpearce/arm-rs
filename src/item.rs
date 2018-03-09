@@ -19,7 +19,7 @@ impl Item {
         self.id == 0
     }
     pub fn item_vec_to_string(items: &[Item], itemizer: &Itemizer) -> String {
-        let mut a: Vec<String> = items.iter().map(|&id| itemizer.str_of(id)).collect();
+        let mut a: Vec<&str> = items.iter().map(|&id| itemizer.str_of(id)).collect();
         ensure_sorted(&mut a);
         a.join(" ")
     }
@@ -27,7 +27,7 @@ impl Item {
 
 // If all items in the itemset convert to an integer, order by that integer,
 // otherwise order lexicographically.
-fn ensure_sorted(a: &mut Vec<String>) {
+fn ensure_sorted(a: &mut Vec<&str>) {
     let all_items_convert_to_ints = a.iter().all(|ref x| match x.parse::<u32>() {
         Ok(_) => true,
         Err(_) => false,
