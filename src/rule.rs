@@ -1,7 +1,7 @@
 use item::Item;
 use itertools::Itertools;
 use ordered_float::OrderedFloat;
-use std::collections::HashMap;
+use fnv::FnvHashMap;
 
 #[derive(Clone, Hash, Eq, Debug)]
 pub struct Rule {
@@ -72,7 +72,7 @@ impl Rule {
     pub fn make(
         antecedent: Vec<Item>,
         consequent: Vec<Item>,
-        itemset_support: &HashMap<Vec<Item>, f64>,
+        itemset_support: &FnvHashMap<Vec<Item>, f64>,
         min_confidence: f64,
         min_lift: f64,
     ) -> Option<Rule> {
@@ -123,7 +123,7 @@ impl Rule {
     pub fn merge(
         a: &Rule,
         b: &Rule,
-        itemset_support: &HashMap<Vec<Item>, f64>,
+        itemset_support: &FnvHashMap<Vec<Item>, f64>,
         min_confidence: f64,
         min_lift: f64,
     ) -> Option<Rule> {

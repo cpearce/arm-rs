@@ -1,8 +1,7 @@
 use item::Item;
 use rayon::prelude::*;
 use itertools::Itertools;
-use std::collections::HashSet;
-use std::collections::HashMap;
+use fnv::{FnvHashMap, FnvHashSet};
 use fptree::ItemSet;
 use rule::Rule;
 
@@ -50,9 +49,9 @@ impl ConsequentTree {
         items: &[Item],
         min_confidence: f64,
         min_lift: f64,
-        itemset_support: &HashMap<Vec<Item>, f64>,
-    ) -> HashSet<Rule> {
-        let mut rules = HashSet::new();
+        itemset_support: &FnvHashMap<Vec<Item>, f64>,
+    ) -> FnvHashSet<Rule> {
+        let mut rules = FnvHashSet::default();
         let mut path = vec![];
         self.generate_candidate_rules_recursive(
             items,
@@ -70,8 +69,8 @@ impl ConsequentTree {
         items: &[Item],
         min_confidence: f64,
         min_lift: f64,
-        itemset_support: &HashMap<Vec<Item>, f64>,
-        rules: &mut HashSet<Rule>,
+        itemset_support: &FnvHashMap<Vec<Item>, f64>,
+        rules: &mut FnvHashSet<Rule>,
         path: &mut Vec<Item>,
     ) {
         if self.is_leaf() {
@@ -117,11 +116,11 @@ impl ConsequentTree {
 
 pub fn generate_itemset_rules(
     itemset: &ItemSet,
-    rules: &HashSet<Rule>,
+    rules: &FnvHashSet<Rule>,
     min_confidence: f64,
     min_lift: f64,
-    itemset_support: &HashMap<Vec<Item>, f64>,
-) -> HashSet<Rule> {
+    itemset_support: &FnvHashMap<Vec<Item>, f64>,
+) -> FnvHashSet<Rule> {
     // Build a trie of all the consequents. The consequents are sorted. So
     // we can use the overlap in the trie branches in order to only attempt
     // to merge rules which have overlapping consequents.
@@ -137,19 +136,19 @@ pub fn generate_rules(
     dataset_size: u32,
     min_confidence: f64,
     min_lift: f64,
-) -> HashSet<Rule> {
+) -> FnvHashSet<Rule> {
     // Create a lookup of itemset to support, so we can quickly determine
     // an itemset's support during rule generation.
-    let mut itemset_support: HashMap<Vec<Item>, f64> = HashMap::with_capacity(itemsets.len());
+    let mut itemset_support: FnvHashMap<Vec<Item>, f64> = FnvHashMap::with_capacity_and_hasher(itemsets.len(), Default::default());
     for ref i in itemsets.iter() {
         itemset_support.insert(i.items.clone(), i.count as f64 / dataset_size as f64);
     }
 
-    let rv: Vec<HashSet<Rule>> = itemsets
+    let rv: Vec<FnvHashSet<Rule>> = itemsets
         .par_iter()
         .filter(|i| i.items.len() > 1)
         .map(|ref itemset| {
-            let mut rules: HashSet<Rule> = HashSet::new();
+            let mut rules: FnvHashSet<Rule> = FnvHashSet::default();
             // First level candidates are all the rules with consequents of size 1.
             for &item in itemset.items.iter() {
                 let (antecedent, consequent) = split_out_item(&itemset.items, item);
@@ -182,7 +181,7 @@ pub fn generate_rules(
         })
         .collect();
 
-    let mut rules: HashSet<Rule> = HashSet::new();
+    let mut rules: FnvHashSet<Rule> = FnvHashSet::default();
     for set in rv.into_iter() {
         for rule in set {
             rules.insert(rule);
@@ -196,7 +195,7 @@ pub fn generate_rules(
 mod tests {
     use fptree::ItemSet;
     use item::Item;
-    use std::collections::HashMap;
+    use fnv::FnvHashMap;
 
     fn to_item_vec(nums: &[u32]) -> Vec<Item> {
         nums.iter().map(|&i| Item::with_id(i)).collect()
@@ -249,7 +248,7 @@ mod tests {
             .collect();
 
         // (Antecedent, Consequent) -> (Confidence, Lift, Support)
-        let expected_rules: HashMap<(Vec<Item>, Vec<Item>), (f64, f64, f64)> = [
+        let expected_rules: FnvHashMap<(Vec<Item>, Vec<Item>), (f64, f64, f64)> = [
             ((vec![218], vec![148]), (0.664, 9.400, 0.059)),
             ((vec![148, 218], vec![6]), (0.966, 1.591, 0.057)),
             ((vec![1, 6], vec![11]), (0.652, 1.772, 0.087)),
