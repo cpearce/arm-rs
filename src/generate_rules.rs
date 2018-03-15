@@ -139,7 +139,8 @@ pub fn generate_rules(
 ) -> FnvHashSet<Rule> {
     // Create a lookup of itemset to support, so we can quickly determine
     // an itemset's support during rule generation.
-    let mut itemset_support: FnvHashMap<Vec<Item>, f64> = FnvHashMap::with_capacity_and_hasher(itemsets.len(), Default::default());
+    let mut itemset_support: FnvHashMap<Vec<Item>, f64> =
+        FnvHashMap::with_capacity_and_hasher(itemsets.len(), Default::default());
     for ref i in itemsets.iter() {
         itemset_support.insert(i.items.clone(), i.count as f64 / dataset_size as f64);
     }
