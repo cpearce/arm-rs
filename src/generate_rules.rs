@@ -46,32 +46,26 @@ impl ConsequentTree {
     }
     pub fn generate_candidate_rules(
         &self,
-        items: &[Item],
         min_confidence: f64,
         min_lift: f64,
         itemset_support: &FnvHashMap<Vec<Item>, f64>,
     ) -> FnvHashSet<Rule> {
         let mut rules = FnvHashSet::default();
-        let mut path = vec![];
         self.generate_candidate_rules_recursive(
-            items,
             min_confidence,
             min_lift,
             itemset_support,
             &mut rules,
-            &mut path,
         );
         rules
     }
 
     pub fn generate_candidate_rules_recursive(
         &self,
-        items: &[Item],
         min_confidence: f64,
         min_lift: f64,
         itemset_support: &FnvHashMap<Vec<Item>, f64>,
         rules: &mut FnvHashSet<Rule>,
-        path: &mut Vec<Item>,
     ) {
         if self.is_leaf() {
             return;
@@ -92,30 +86,19 @@ impl ConsequentTree {
                 }
             }
         }
-        // Push out item into the consequent path.
-        if !self.item.is_null() {
-            path.push(self.item);
-        }
         // Recurse onto each child.
         for ref child in self.children.iter() {
             child.generate_candidate_rules_recursive(
-                items,
                 min_confidence,
                 min_lift,
                 itemset_support,
                 rules,
-                path,
             );
-        }
-        // Undo the consequent push; backtrack.
-        if !self.item.is_null() {
-            path.pop();
         }
     }
 }
 
 pub fn generate_itemset_rules(
-    itemset: &ItemSet,
     rules: &FnvHashSet<Rule>,
     min_confidence: f64,
     min_lift: f64,
@@ -128,7 +111,7 @@ pub fn generate_itemset_rules(
     for rule in rules.iter() {
         rule_tree.insert(&rule.consequent, &rule);
     }
-    rule_tree.generate_candidate_rules(&itemset.items, min_confidence, min_lift, itemset_support)
+    rule_tree.generate_candidate_rules(min_confidence, min_lift, itemset_support)
 }
 
 pub fn generate_rules(
@@ -167,7 +150,6 @@ pub fn generate_rules(
             let mut candidates = rules.clone();
             while !candidates.is_empty() {
                 let next_gen = generate_itemset_rules(
-                    itemset,
                     &candidates,
                     min_confidence,
                     min_lift,
