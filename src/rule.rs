@@ -20,7 +20,28 @@ impl PartialEq for Rule {
 
 // Assumes both itemsets are sorted.
 pub fn union(a: &[Item], b: &[Item]) -> Vec<Item> {
-    let mut c: Vec<Item> = Vec::new();
+    // Count the length required in the union, to avoid
+    // paying for reallocations while pushing onto the end.
+    let mut count = 0;
+    let mut ap = 0;
+    let mut bp = 0;
+    while ap < a.len() && bp < b.len() {
+        if a[ap] < b[bp] {
+            count += 1;
+            ap += 1;
+        } else if b[bp] < a[ap] {
+            count += 1;
+            bp += 1;
+        } else {
+            count += 1;
+            ap += 1;
+            bp += 1;
+        }
+    }
+    count += a.len() - ap;
+    count += b.len() - bp;
+
+    let mut c: Vec<Item> = Vec::with_capacity(count);
     let mut ap = 0;
     let mut bp = 0;
     while ap < a.len() && bp < b.len() {
@@ -49,7 +70,24 @@ pub fn union(a: &[Item], b: &[Item]) -> Vec<Item> {
 
 // Assumes both itemsets are sorted.
 pub fn intersection(a: &[Item], b: &[Item]) -> Vec<Item> {
-    let mut c: Vec<Item> = Vec::new();
+    // Count the length required in the intersection, to avoid
+    // paying for reallocations while pushing onto the end.
+    let mut count = 0;
+    let mut ap = 0;
+    let mut bp = 0;
+    while ap < a.len() && bp < b.len() {
+        if a[ap] < b[bp] {
+            ap += 1;
+        } else if b[bp] < a[ap] {
+            bp += 1;
+        } else {
+            count += 1;
+            ap += 1;
+            bp += 1;
+        }
+    }
+
+    let mut c: Vec<Item> = Vec::with_capacity(count);
     let mut ap = 0;
     let mut bp = 0;
     while ap < a.len() && bp < b.len() {
