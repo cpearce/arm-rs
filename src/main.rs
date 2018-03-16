@@ -1,6 +1,6 @@
 extern crate argparse;
-extern crate fnv;
 extern crate itertools;
+extern crate metrohash;
 extern crate rayon;
 
 mod index;
@@ -25,6 +25,7 @@ use rule::Rule;
 use index::Index;
 use command_line_args::Arguments;
 use command_line_args::parse_args_or_exit;
+use metrohash::MetroHashSet;
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -123,14 +124,12 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
 
     println!("Generating rules...");
     let timer = Instant::now();
-    let rules: Vec<Rule> = generate_rules(
+    let rules = generate_rules(
         &patterns,
         num_transactions as u32,
         args.min_confidence,
         args.min_lift,
-    ).iter()
-        .cloned()
-        .collect();
+    );
     println!(
         "Generated {} rules in {} ms, writing to disk.",
         rules.len(),
@@ -154,7 +153,7 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
 }
 
 fn write_rules(
-    rules: &Vec<Rule>,
+    rules: &MetroHashSet<Rule>,
     output_rules_path: &str,
     itemizer: &Itemizer,
 ) -> Result<(), Box<Error>> {

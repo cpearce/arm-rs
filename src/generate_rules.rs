@@ -1,7 +1,7 @@
 use item::Item;
 use rayon::prelude::*;
 use itertools::Itertools;
-use fnv::{FnvHashMap, FnvHashSet};
+use metrohash::{MetroHashMap, MetroHashSet};
 use fptree::ItemSet;
 use rule::Rule;
 
@@ -53,9 +53,9 @@ impl<'a> ConsequentTree<'a> {
         &self,
         min_confidence: f64,
         min_lift: f64,
-        itemset_support: &FnvHashMap<Vec<Item>, f64>,
-    ) -> FnvHashSet<Rule> {
-        let mut rules = FnvHashSet::default();
+        itemset_support: &MetroHashMap<Vec<Item>, f64>,
+    ) -> MetroHashSet<Rule> {
+        let mut rules = MetroHashSet::default();
         self.generate_candidate_rules_recursive(
             min_confidence,
             min_lift,
@@ -69,8 +69,8 @@ impl<'a> ConsequentTree<'a> {
         &self,
         min_confidence: f64,
         min_lift: f64,
-        itemset_support: &FnvHashMap<Vec<Item>, f64>,
-        rules: &mut FnvHashSet<Rule>,
+        itemset_support: &MetroHashMap<Vec<Item>, f64>,
+        rules: &mut MetroHashSet<Rule>,
     ) {
         if self.is_leaf() {
             return;
@@ -104,11 +104,11 @@ impl<'a> ConsequentTree<'a> {
 }
 
 pub fn generate_itemset_rules(
-    rules: &FnvHashSet<Rule>,
+    rules: &MetroHashSet<Rule>,
     min_confidence: f64,
     min_lift: f64,
-    itemset_support: &FnvHashMap<Vec<Item>, f64>,
-) -> FnvHashSet<Rule> {
+    itemset_support: &MetroHashMap<Vec<Item>, f64>,
+) -> MetroHashSet<Rule> {
     // Build a trie of all the consequents. The consequents are sorted. So
     // we can use the overlap in the trie branches in order to only attempt
     // to merge rules which have overlapping consequents.
@@ -124,20 +124,19 @@ pub fn generate_rules(
     dataset_size: u32,
     min_confidence: f64,
     min_lift: f64,
-) -> FnvHashSet<Rule> {
+) -> MetroHashSet<Rule> {
     // Create a lookup of itemset to support, so we can quickly determine
     // an itemset's support during rule generation.
-    let mut itemset_support: FnvHashMap<Vec<Item>, f64> =
-        FnvHashMap::with_capacity_and_hasher(itemsets.len(), Default::default());
+    let mut itemset_support: MetroHashMap<Vec<Item>, f64> = MetroHashMap::default();
     for ref i in itemsets.iter() {
         itemset_support.insert(i.items.clone(), i.count as f64 / dataset_size as f64);
     }
 
-    let rv: Vec<FnvHashSet<Rule>> = itemsets
+    itemsets
         .par_iter()
         .filter(|i| i.items.len() > 1)
-        .map(|ref itemset| {
-            let mut rules: FnvHashSet<Rule> = FnvHashSet::default();
+        .flat_map(|ref itemset| {
+            let mut candidates: MetroHashSet<Rule> = MetroHashSet::default();
             // First level candidates are all the rules with consequents of size 1.
             for &item in itemset.items.iter() {
                 let (antecedent, consequent) = split_out_item(&itemset.items, item);
@@ -149,41 +148,28 @@ pub fn generate_rules(
                     min_lift,
                 ) {
                     // Passes confidence and lift threshold, keep rule.
-                    rules.insert(rule);
+                    candidates.insert(rule);
                 }
             }
-            let mut candidates = rules.clone();
+            let mut rules: MetroHashSet<Rule> = MetroHashSet::default();
             while !candidates.is_empty() {
-                let next_gen = generate_itemset_rules(
-                    &candidates,
-                    min_confidence,
-                    min_lift,
-                    &itemset_support,
-                );
-                for rule in next_gen.iter() {
-                    rules.insert(rule.clone());
+                let next_gen =
+                    generate_itemset_rules(&candidates, min_confidence, min_lift, &itemset_support);
+                for rule in candidates {
+                    rules.insert(rule);
                 }
                 candidates = next_gen;
             }
             rules
         })
-        .collect();
-
-    let mut rules: FnvHashSet<Rule> = FnvHashSet::default();
-    for set in rv.into_iter() {
-        for rule in set {
-            rules.insert(rule);
-        }
-    }
-
-    rules
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use fptree::ItemSet;
     use item::Item;
-    use fnv::FnvHashMap;
+    use metrohash::MetroHashMap;
 
     fn to_item_vec(nums: &[u32]) -> Vec<Item> {
         nums.iter().map(|&i| Item::with_id(i)).collect()
@@ -236,7 +222,7 @@ mod tests {
             .collect();
 
         // (Antecedent, Consequent) -> (Confidence, Lift, Support)
-        let expected_rules: FnvHashMap<(Vec<Item>, Vec<Item>), (f64, f64, f64)> = [
+        let expected_rules: MetroHashMap<(Vec<Item>, Vec<Item>), (f64, f64, f64)> = [
             ((vec![218], vec![148]), (0.664, 9.400, 0.059)),
             ((vec![148, 218], vec![6]), (0.966, 1.591, 0.057)),
             ((vec![1, 6], vec![11]), (0.652, 1.772, 0.087)),

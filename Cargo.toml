@@ -7,7 +7,7 @@ authors = ["Chris Pearce <chris@pearce.org.nz>"]
 rayon = "0.8.2"
 itertools = "0.6.1"
 argparse = "*"
-fnv = "1.0.6"
+metrohash = "1.0.5"
 
 [profile.release]
 debug = true

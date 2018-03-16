@@ -1,6 +1,5 @@
 use item::Item;
-use itertools::Itertools;
-use fnv::FnvHashMap;
+use metrohash::MetroHashMap;
 use std::hash::{Hash, Hasher};
 
 #[derive(Clone, Debug)]
@@ -119,7 +118,7 @@ impl Rule {
     pub fn make(
         antecedent: Vec<Item>,
         consequent: Vec<Item>,
-        itemset_support: &FnvHashMap<Vec<Item>, f64>,
+        itemset_support: &MetroHashMap<Vec<Item>, f64>,
         min_confidence: f64,
         min_lift: f64,
     ) -> Option<Rule> {
@@ -175,7 +174,7 @@ impl Rule {
     pub fn merge(
         a: &Rule,
         b: &Rule,
-        itemset_support: &FnvHashMap<Vec<Item>, f64>,
+        itemset_support: &MetroHashMap<Vec<Item>, f64>,
         min_confidence: f64,
         min_lift: f64,
     ) -> Option<Rule> {
