@@ -11,39 +11,44 @@ pub fn split_out_item(items: &Vec<Item>, item: Item) -> (Vec<Item>, Vec<Item>) {
     (antecedent, consequent)
 }
 
-struct ConsequentTree {
-    children: Vec<ConsequentTree>,
-    rules: Vec<Rule>,
+struct ConsequentTree<'a> {
+    children: Vec<ConsequentTree<'a>>,
+    rules: Vec<&'a Rule>,
     item: Item,
 }
 
-impl ConsequentTree {
-    pub fn new(item: Item) -> ConsequentTree {
+impl<'a> ConsequentTree<'a> {
+    pub fn new(item: Item) -> ConsequentTree<'a> {
         ConsequentTree {
             children: vec![],
             rules: vec![],
             item: item,
         }
     }
+
     fn is_leaf(&self) -> bool {
         self.children.is_empty()
     }
-    fn insert(&mut self, consequent: &[Item], rule: &Rule) {
+
+    fn insert(&mut self, consequent: &[Item], rule: &'a Rule) {
         if consequent.is_empty() {
-            self.rules.push(rule.clone());
+            self.rules.push(rule);
             return;
         }
         let item = consequent[0];
-        for child in self.children.iter_mut() {
+        for ref mut child in self.children.iter_mut() {
             if child.item == item {
                 child.insert(&consequent[1..], rule);
                 return;
             }
         }
-        let mut child = ConsequentTree::new(item);
-        child.insert(&consequent[1..], rule);
-        self.children.push(child);
+        self.children.push(ConsequentTree::new(item));
+        self.children
+            .last_mut()
+            .unwrap()
+            .insert(&consequent[1..], rule);
     }
+
     pub fn generate_candidate_rules(
         &self,
         min_confidence: f64,
@@ -73,7 +78,7 @@ impl ConsequentTree {
         // Filter out this node's children which store rules.
         let leaf_children: Vec<&ConsequentTree> = self.children
             .iter()
-            .filter(|&child| !child.rules.is_empty())
+            .filter(|ref child| !child.rules.is_empty())
             .collect();
         // Foreach possible combination of two leaf children.
         for (child1, child2) in leaf_children.iter().tuple_combinations() {
