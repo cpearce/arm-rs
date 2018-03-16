@@ -1,7 +1,6 @@
 extern crate argparse;
 extern crate fnv;
 extern crate itertools;
-extern crate ordered_float;
 extern crate rayon;
 
 mod index;

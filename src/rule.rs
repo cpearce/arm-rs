@@ -1,15 +1,24 @@
 use item::Item;
 use itertools::Itertools;
-use ordered_float::OrderedFloat;
 use fnv::FnvHashMap;
+use std::hash::{Hash, Hasher};
 
-#[derive(Clone, Hash, Eq, Debug)]
+#[derive(Clone, Debug)]
 pub struct Rule {
     pub antecedent: Vec<Item>,
     pub consequent: Vec<Item>,
-    pub confidence: OrderedFloat<f64>,
-    pub lift: OrderedFloat<f64>,
-    pub support: OrderedFloat<f64>,
+    pub confidence: f64,
+    pub lift: f64,
+    pub support: f64,
+}
+
+impl Eq for Rule {}
+
+impl Hash for Rule {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.antecedent.hash(state);
+        self.consequent.hash(state);
+    }
 }
 
 impl PartialEq for Rule {
@@ -153,9 +162,9 @@ impl Rule {
         Some(Rule {
             antecedent,
             consequent,
-            confidence: OrderedFloat::from(confidence),
-            lift: OrderedFloat::from(lift),
-            support: OrderedFloat::from(ac_sup),
+            confidence,
+            lift: lift,
+            support: ac_sup,
         })
     }
 
