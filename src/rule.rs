@@ -143,11 +143,16 @@ impl Rule {
             return None;
         }
 
+        let mut antecedent = antecedent;
+        antecedent.sort();
+        let mut consequent = consequent;
+        consequent.sort();
+
         // Note: We sort the antecedent and consequent so that equality
         // tests are consistent.
         Some(Rule {
-            antecedent: antecedent.iter().cloned().sorted(),
-            consequent: consequent.iter().cloned().sorted(),
+            antecedent,
+            consequent,
             confidence: OrderedFloat::from(confidence),
             lift: OrderedFloat::from(lift),
             support: OrderedFloat::from(ac_sup),
