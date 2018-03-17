@@ -163,9 +163,7 @@ pub fn generate_rules(
             while !candidates.is_empty() {
                 let next_gen =
                     generate_itemset_rules(&candidates, min_confidence, min_lift, &itemset_support);
-                for rule in candidates {
-                    rules.insert(rule);
-                }
+                rules.extend(candidates);
                 candidates = next_gen;
             }
             rules
