@@ -141,21 +141,22 @@ pub fn generate_rules(
         .par_iter()
         .filter(|i| i.items.len() > 1)
         .flat_map(|ref itemset| {
-            let mut candidates: MetroHashSet<Rule> = MetroHashSet::default();
             // First level candidates are all the rules with consequents of size 1.
-            for &item in itemset.items.iter() {
-                let (antecedent, consequent) = split_out_item(&itemset.items, item);
-                if let Some(rule) = Rule::make(
-                    antecedent,
-                    consequent,
-                    &itemset_support,
-                    min_confidence,
-                    min_lift,
-                ) {
-                    // Passes confidence and lift threshold, keep rule.
-                    candidates.insert(rule);
-                }
-            }
+            let mut candidates: MetroHashSet<Rule> = itemset
+                .items
+                .iter()
+                .filter_map(|&item| -> Option<Rule> {
+                    let (antecedent, consequent) = split_out_item(&itemset.items, item);
+                    Rule::make(
+                        antecedent,
+                        consequent,
+                        &itemset_support,
+                        min_confidence,
+                        min_lift,
+                    )
+                })
+                .collect();
+
             let mut rules: MetroHashSet<Rule> = MetroHashSet::default();
             while !candidates.is_empty() {
                 let next_gen =
