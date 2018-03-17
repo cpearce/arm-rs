@@ -127,10 +127,15 @@ pub fn generate_rules(
 ) -> MetroHashSet<Rule> {
     // Create a lookup of itemset to support, so we can quickly determine
     // an itemset's support during rule generation.
-    let mut itemset_support: MetroHashMap<Vec<Item>, f64> = MetroHashMap::default();
-    for ref i in itemsets.iter() {
-        itemset_support.insert(i.items.clone(), i.count as f64 / dataset_size as f64);
-    }
+    let itemset_support: MetroHashMap<Vec<Item>, f64> = itemsets
+        .iter()
+        .map(|itemset| {
+            (
+                itemset.items.clone(),
+                itemset.count as f64 / dataset_size as f64,
+            )
+        })
+        .collect();
 
     itemsets
         .par_iter()
