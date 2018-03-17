@@ -158,6 +158,8 @@ pub fn generate_rules(
                 .collect()
         })
         .flat_map(|candidates| -> MetroHashSet<Rule> {
+            // Create subsequent generations by merging pairs of rules of
+            // whose consequent is size N and which have N-1 items in common.
             let mut rules: MetroHashSet<Rule> = MetroHashSet::default();
             let mut candidates = candidates;
             while !candidates.is_empty() {
