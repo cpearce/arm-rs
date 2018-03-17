@@ -139,14 +139,14 @@ pub fn generate_rules(
 
     itemsets
         .par_iter()
-        .filter(|i| i.items.len() > 1)
-        .flat_map(|ref itemset| {
-            // First level candidates are all the rules with consequents of size 1.
-            let mut candidates: MetroHashSet<Rule> = itemset
-                .items
+        .map(|ref itemset| &itemset.items)
+        .filter(|ref items| items.len() > 1)
+        .map(|ref items| -> MetroHashSet<Rule> {
+            // First generation candidates are all the rules with consequents of size 1.
+            items
                 .iter()
                 .filter_map(|&item| -> Option<Rule> {
-                    let (antecedent, consequent) = split_out_item(&itemset.items, item);
+                    let (antecedent, consequent) = split_out_item(&items, item);
                     Rule::make(
                         antecedent,
                         consequent,
@@ -155,9 +155,11 @@ pub fn generate_rules(
                         min_lift,
                     )
                 })
-                .collect();
-
+                .collect()
+        })
+        .flat_map(|candidates| -> MetroHashSet<Rule> {
             let mut rules: MetroHashSet<Rule> = MetroHashSet::default();
+            let mut candidates = candidates;
             while !candidates.is_empty() {
                 let next_gen =
                     generate_itemset_rules(&candidates, min_confidence, min_lift, &itemset_support);
