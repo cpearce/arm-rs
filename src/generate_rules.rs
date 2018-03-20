@@ -11,112 +11,35 @@ pub fn split_out_item(items: &Vec<Item>, item: Item) -> (Vec<Item>, Vec<Item>) {
     (antecedent, consequent)
 }
 
-struct ConsequentTree<'a> {
-    children: Vec<ConsequentTree<'a>>,
-    rules: Vec<&'a Rule>,
-    item: Item,
-}
-
-impl<'a> ConsequentTree<'a> {
-    pub fn new(item: Item) -> ConsequentTree<'a> {
-        ConsequentTree {
-            children: vec![],
-            rules: vec![],
-            item: item,
-        }
-    }
-
-    fn is_leaf(&self) -> bool {
-        self.children.is_empty()
-    }
-
-    fn insert(&mut self, consequent: &[Item], rule: &'a Rule) {
-        if consequent.is_empty() {
-            self.rules.push(rule);
-            return;
-        }
-        let item = consequent[0];
-        for ref mut child in self.children.iter_mut() {
-            if child.item == item {
-                child.insert(&consequent[1..], rule);
-                return;
-            }
-        }
-        self.children.push(ConsequentTree::new(item));
-        self.children
-            .last_mut()
-            .unwrap()
-            .insert(&consequent[1..], rule);
-    }
-
-    pub fn generate_candidate_rules(
-        &self,
-        min_confidence: f64,
-        min_lift: f64,
-        itemset_support: &MetroHashMap<Vec<Item>, f64>,
-    ) -> MetroHashSet<Rule> {
-        let mut rules = MetroHashSet::default();
-        self.generate_candidate_rules_recursive(
-            min_confidence,
-            min_lift,
-            itemset_support,
-            &mut rules,
-        );
-        rules
-    }
-
-    pub fn generate_candidate_rules_recursive(
-        &self,
-        min_confidence: f64,
-        min_lift: f64,
-        itemset_support: &MetroHashMap<Vec<Item>, f64>,
-        rules: &mut MetroHashSet<Rule>,
-    ) {
-        if self.is_leaf() {
-            return;
-        }
-        // Filter out this node's children which store rules.
-        let leaf_children: Vec<&ConsequentTree> = self.children
-            .iter()
-            .filter(|ref child| !child.rules.is_empty())
-            .collect();
-        // Foreach possible combination of two leaf children.
-        for (child1, child2) in leaf_children.iter().tuple_combinations() {
-            // Try merging each of those children's leaves.
-            for (r1, r2) in child1.rules.iter().cartesian_product(&child2.rules) {
-                if let Some(rule) = Rule::merge(&r1, &r2, itemset_support, min_confidence, min_lift)
-                {
-                    // Passes confidence and lift threshold, keep rule.
-                    rules.insert(rule);
-                }
-            }
-        }
-        // Recurse onto each child.
-        for ref child in self.children.iter() {
-            child.generate_candidate_rules_recursive(
-                min_confidence,
-                min_lift,
-                itemset_support,
-                rules,
-            );
-        }
-    }
-}
-
 pub fn generate_itemset_rules(
     rules: &MetroHashSet<Rule>,
     min_confidence: f64,
     min_lift: f64,
     itemset_support: &MetroHashMap<Vec<Item>, f64>,
 ) -> MetroHashSet<Rule> {
-    // Build a trie of all the consequents. The consequents are sorted. So
-    // we can use the overlap in the trie branches in order to only attempt
-    // to merge rules which have overlapping consequents.
-    let mut rule_tree = ConsequentTree::new(Item::null());
+    // Separate rules into groups by number of items. This is so we only try to combine
+    // rules of the same size together.
+    let mut rules_by_level : Vec<Vec<&Rule>> = vec![];
     for rule in rules.iter() {
-        rule_tree.insert(&rule.consequent, &rule);
+        let level = rule.consequent.len();
+        if rules_by_level.len() <= level {
+            rules_by_level.resize(level + 1, vec![]);
+        }
+        rules_by_level[level].push(&rule);
     }
-    rule_tree.generate_candidate_rules(min_confidence, min_lift, itemset_support)
+    // Try to combine rules of the same size together.
+    let mut next_gen = MetroHashSet::default();
+    for level in rules_by_level.into_iter() {
+        for (rule1, rule2) in level.iter().tuple_combinations() {
+            if let Some(rule) = Rule::merge(rule1, rule2, itemset_support, min_confidence, min_lift)
+            {
+                // Passes confidence and lift threshold, keep rule.
+                next_gen.insert(rule);
+            }
+        }
+    }
+
+    next_gen
 }
 
 pub fn generate_rules(
