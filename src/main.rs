@@ -151,17 +151,14 @@ fn write_rules(
     itemizer: &Itemizer,
 ) -> Result<(), Box<Error>> {
     let mut output = BufWriter::new(File::create(output_rules_path)?);
-    writeln!(
-        output,
-        "Antecedent => Consequent, Confidence, Lift, Support"
-    )?;
+    writeln!(output, "Antecedent => Consequent,Confidence,Lift,Support")?;
     for rule in rules {
         write_item_slice(&mut output, &rule.antecedent, &itemizer)?;
         write!(output, " => ")?;
         write_item_slice(&mut output, &rule.consequent, &itemizer)?;
         writeln!(
             output,
-            ", {}, {}, {}",
+            ",{},{},{}",
             rule.confidence(),
             rule.lift(),
             rule.support(),
