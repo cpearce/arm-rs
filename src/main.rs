@@ -5,6 +5,7 @@ extern crate rayon;
 
 mod index;
 mod item;
+mod vec_sets;
 mod item_counter;
 mod itemizer;
 mod transaction_reader;

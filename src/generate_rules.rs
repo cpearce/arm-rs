@@ -4,7 +4,7 @@ use rayon::prelude::*;
 use itertools::Itertools;
 use fptree::ItemSet;
 use rule::Rule;
-use rule::intersection_size;
+use vec_sets::intersection_size;
 use rule::RuleSet;
 
 pub type ItemsetSupport = FnvHashMap<Vec<Item>, f64>;
