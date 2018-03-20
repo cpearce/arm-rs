@@ -23,7 +23,6 @@ use fptree::fp_growth;
 use fptree::ItemSet;
 use generate_rules::generate_rules;
 use rule::Rule;
-use index::Index;
 use command_line_args::Arguments;
 use command_line_args::parse_args_or_exit;
 use std::error::Error;
@@ -78,7 +77,6 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
     // Load the initial tree, by re-reading the data set and inserting
     // each transaction into the tree sorted by item frequency.
     let timer = Instant::now();
-    let mut index = Index::new();
     let mut fptree = FPTree::new();
     let min_count = (args.min_support * (num_transactions as f64)).ceil() as u32;
     for transaction in TransactionReader::new(&args.input_file_path, &mut itemizer) {
@@ -91,10 +89,6 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
                 filtered_transaction.push(item);
             }
         }
-        // Note: we deliberately insert even if the transaction is empty to
-        // ensure the index increments its transaction count. Otherwise the
-        // support counts will be wrong in the rule generation phase.
-        index.insert(&filtered_transaction);
         if filtered_transaction.is_empty() {
             continue;
         }
