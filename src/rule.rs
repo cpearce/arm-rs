@@ -151,11 +151,6 @@ impl Rule {
             return None;
         }
 
-        let mut antecedent = antecedent;
-        antecedent.sort();
-        let mut consequent = consequent;
-        consequent.sort();
-
         // Note: We sort the antecedent and consequent so that equality
         // tests are consistent.
         Some(Rule {
