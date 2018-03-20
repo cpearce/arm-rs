@@ -1,7 +1,7 @@
 extern crate argparse;
+extern crate fnv;
 extern crate itertools;
 extern crate rayon;
-extern crate fnv;
 
 mod index;
 mod item;
@@ -22,7 +22,6 @@ use fptree::FPTree;
 use fptree::fp_growth;
 use fptree::ItemSet;
 use generate_rules::generate_rules;
-use rule::Rule;
 use command_line_args::Arguments;
 use command_line_args::parse_args_or_exit;
 use std::error::Error;
