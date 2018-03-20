@@ -1,7 +1,7 @@
 extern crate argparse;
 extern crate itertools;
-extern crate metrohash;
 extern crate rayon;
+extern crate fnv;
 
 mod index;
 mod item;
@@ -13,6 +13,7 @@ mod generate_rules;
 mod command_line_args;
 mod rule;
 
+use rule::RuleSet;
 use itemizer::Itemizer;
 use item::Item;
 use item_counter::ItemCounter;
@@ -25,7 +26,6 @@ use rule::Rule;
 use index::Index;
 use command_line_args::Arguments;
 use command_line_args::parse_args_or_exit;
-use metrohash::MetroHashSet;
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -153,7 +153,7 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
 }
 
 fn write_rules(
-    rules: &MetroHashSet<Rule>,
+    rules: &RuleSet,
     output_rules_path: &str,
     itemizer: &Itemizer,
 ) -> Result<(), Box<Error>> {

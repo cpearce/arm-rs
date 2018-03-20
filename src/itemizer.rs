@@ -1,10 +1,10 @@
-use metrohash::MetroHashMap;
 use item::Item;
 use item_counter::ItemCounter;
+use fnv::FnvHashMap;
 
 pub struct Itemizer {
     next_item_id: u32,
-    item_str_to_id: MetroHashMap<String, Item>,
+    item_str_to_id: FnvHashMap<String, Item>,
     item_id_to_str: Vec<String>,
 }
 
@@ -12,7 +12,7 @@ impl Itemizer {
     pub fn new() -> Itemizer {
         Itemizer {
             next_item_id: 1,
-            item_str_to_id: MetroHashMap::default(),
+            item_str_to_id: FnvHashMap::default(),
             item_id_to_str: vec![],
         }
     }

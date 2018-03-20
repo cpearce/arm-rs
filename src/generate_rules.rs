@@ -1,9 +1,14 @@
+use fnv::FnvHashMap;
 use item::Item;
 use rayon::prelude::*;
 use itertools::Itertools;
-use metrohash::{MetroHashMap, MetroHashSet};
 use fptree::ItemSet;
 use rule::Rule;
+use rule::RuleSet;
+
+
+pub type ItemsetSupport = FnvHashMap<Vec<Item>, f64>;
+
 
 pub fn split_out_item(items: &Vec<Item>, item: Item) -> (Vec<Item>, Vec<Item>) {
     let antecedent: Vec<Item> = items.iter().filter(|&&x| x != item).cloned().collect();
@@ -12,11 +17,11 @@ pub fn split_out_item(items: &Vec<Item>, item: Item) -> (Vec<Item>, Vec<Item>) {
 }
 
 pub fn generate_itemset_rules(
-    rules: &MetroHashSet<Rule>,
+    rules: &RuleSet,
     min_confidence: f64,
     min_lift: f64,
-    itemset_support: &MetroHashMap<Vec<Item>, f64>,
-) -> MetroHashSet<Rule> {
+    itemset_support: &ItemsetSupport,
+) -> RuleSet {
     // Separate rules into groups by number of items. This is so we only try to combine
     // rules of the same size together.
     let mut rules_by_level : Vec<Vec<&Rule>> = vec![];
@@ -28,7 +33,7 @@ pub fn generate_itemset_rules(
         rules_by_level[level].push(&rule);
     }
     // Try to combine rules of the same size together.
-    let mut next_gen = MetroHashSet::default();
+    let mut next_gen = RuleSet::default();
     for level in rules_by_level.into_iter() {
         for (rule1, rule2) in level.iter().tuple_combinations() {
             if let Some(rule) = Rule::merge(rule1, rule2, itemset_support, min_confidence, min_lift)
@@ -47,10 +52,10 @@ pub fn generate_rules(
     dataset_size: u32,
     min_confidence: f64,
     min_lift: f64,
-) -> MetroHashSet<Rule> {
+) -> RuleSet {
     // Create a lookup of itemset to support, so we can quickly determine
     // an itemset's support during rule generation.
-    let itemset_support: MetroHashMap<Vec<Item>, f64> = itemsets
+    let itemset_support: ItemsetSupport = itemsets
         .iter()
         .map(|itemset| {
             (
@@ -64,7 +69,7 @@ pub fn generate_rules(
         .par_iter()
         .map(|ref itemset| &itemset.items)
         .filter(|ref items| items.len() > 1)
-        .map(|ref items| -> MetroHashSet<Rule> {
+        .map(|ref items| -> RuleSet {
             // First generation candidates are all the rules with consequents of size 1.
             items
                 .iter()
@@ -80,10 +85,10 @@ pub fn generate_rules(
                 })
                 .collect()
         })
-        .flat_map(|candidates| -> MetroHashSet<Rule> {
+        .flat_map(|candidates| -> RuleSet {
             // Create subsequent generations by merging pairs of rules of
             // whose consequent is size N and which have N-1 items in common.
-            let mut rules: MetroHashSet<Rule> = MetroHashSet::default();
+            let mut rules: RuleSet = RuleSet::default();
             let mut candidates = candidates;
             while !candidates.is_empty() {
                 let next_gen =
@@ -100,7 +105,7 @@ pub fn generate_rules(
 mod tests {
     use fptree::ItemSet;
     use item::Item;
-    use metrohash::MetroHashMap;
+    use std::collections::HashMap;
 
     fn to_item_vec(nums: &[u32]) -> Vec<Item> {
         nums.iter().map(|&i| Item::with_id(i)).collect()
@@ -153,7 +158,7 @@ mod tests {
             .collect();
 
         // (Antecedent, Consequent) -> (Confidence, Lift, Support)
-        let expected_rules: MetroHashMap<(Vec<Item>, Vec<Item>), (f64, f64, f64)> = [
+        let expected_rules: HashMap<(Vec<Item>, Vec<Item>), (f64, f64, f64)> = [
             ((vec![218], vec![148]), (0.664, 9.400, 0.059)),
             ((vec![148, 218], vec![6]), (0.966, 1.591, 0.057)),
             ((vec![1, 6], vec![11]), (0.652, 1.772, 0.087)),

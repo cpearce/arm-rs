@@ -1,6 +1,9 @@
+use generate_rules::ItemsetSupport;
 use item::Item;
-use metrohash::MetroHashMap;
 use std::hash::{Hash, Hasher};
+use fnv::FnvHashSet;
+
+pub type RuleSet = FnvHashSet<Rule>;
 
 #[derive(Clone, Debug)]
 pub struct Rule {
@@ -118,7 +121,7 @@ impl Rule {
     pub fn make(
         antecedent: Vec<Item>,
         consequent: Vec<Item>,
-        itemset_support: &MetroHashMap<Vec<Item>, f64>,
+        itemset_support: &ItemsetSupport,
         min_confidence: f64,
         min_lift: f64,
     ) -> Option<Rule> {
@@ -169,7 +172,7 @@ impl Rule {
     pub fn merge(
         a: &Rule,
         b: &Rule,
-        itemset_support: &MetroHashMap<Vec<Item>, f64>,
+        itemset_support: &ItemsetSupport,
         min_confidence: f64,
         min_lift: f64,
     ) -> Option<Rule> {
