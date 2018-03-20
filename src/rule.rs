@@ -16,8 +16,7 @@ pub struct Rule {
     pub support: f64,
 }
 
-impl Eq for Rule {}
-
+// Custom hash that excludes floating point values which aren't hashable.
 impl Hash for Rule {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.antecedent.hash(state);
@@ -25,15 +24,19 @@ impl Hash for Rule {
     }
 }
 
+// Override equality check, as floating point values can't be reliably compared for equality.
 impl PartialEq for Rule {
     fn eq(&self, other: &Rule) -> bool {
         self.antecedent == other.antecedent && self.consequent == other.consequent
     }
 }
 
+impl Eq for Rule {}
+
 impl Rule {
     // Creates a new Rule from (antecedent,consequent) if the rule
-    // would be above the min_confidence threshold.
+    // would be above the min_confidence threshold. Assumes both
+    // antecedent and consequent are already sorted.
     pub fn make(
         antecedent: Vec<Item>,
         consequent: Vec<Item>,
@@ -70,8 +73,6 @@ impl Rule {
             return None;
         }
 
-        // Note: We sort the antecedent and consequent so that equality
-        // tests are consistent.
         Some(Rule {
             antecedent,
             consequent,
