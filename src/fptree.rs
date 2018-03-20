@@ -195,9 +195,8 @@ impl PartialOrd for ItemSet {
 
 impl ItemSet {
     pub fn new(items: Vec<Item>, count: u32) -> ItemSet {
-        let sorted_items = items.iter().cloned().sorted();
         ItemSet {
-            items: sorted_items,
+            items: items.iter().map(|&x| x).sorted(),
             count: count,
         }
     }
