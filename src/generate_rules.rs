@@ -4,11 +4,10 @@ use rayon::prelude::*;
 use itertools::Itertools;
 use fptree::ItemSet;
 use rule::Rule;
+use rule::intersection_size;
 use rule::RuleSet;
 
-
 pub type ItemsetSupport = FnvHashMap<Vec<Item>, f64>;
-
 
 pub fn split_out_item(items: &Vec<Item>, item: Item) -> (Vec<Item>, Vec<Item>) {
     let antecedent: Vec<Item> = items.iter().filter(|&&x| x != item).cloned().collect();
@@ -22,29 +21,20 @@ pub fn generate_itemset_rules(
     min_lift: f64,
     itemset_support: &ItemsetSupport,
 ) -> RuleSet {
-    // Separate rules into groups by number of items. This is so we only try to combine
-    // rules of the same size together.
-    let mut rules_by_level : Vec<Vec<&Rule>> = vec![];
-    for rule in rules.iter() {
-        let level = rule.consequent.len();
-        if rules_by_level.len() <= level {
-            rules_by_level.resize(level + 1, vec![]);
-        }
-        rules_by_level[level].push(&rule);
-    }
-    // Try to combine rules of the same size together.
-    let mut next_gen = RuleSet::default();
-    for level in rules_by_level.into_iter() {
-        for (rule1, rule2) in level.iter().tuple_combinations() {
-            if let Some(rule) = Rule::merge(rule1, rule2, itemset_support, min_confidence, min_lift)
-            {
-                // Passes confidence and lift threshold, keep rule.
-                next_gen.insert(rule);
-            }
-        }
-    }
-
-    next_gen
+    // Try to combine rules with consequents of the same size together
+    // which have size-1 items in common.
+    rules
+        .iter()
+        .tuple_combinations()
+        .filter(|&(ref rule1, ref rule2)| &rule1.consequent.len() == &rule2.consequent.len())
+        .filter(|&(ref rule1, ref rule2)| {
+            let overlap = intersection_size(&rule1.consequent, &rule2.consequent);
+            overlap == rule2.consequent.len() - 1
+        })
+        .filter_map(|(rule1, rule2)| {
+            Rule::merge(rule1, rule2, itemset_support, min_confidence, min_lift)
+        })
+        .collect()
 }
 
 pub fn generate_rules(

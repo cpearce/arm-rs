@@ -80,7 +80,7 @@ pub fn union(a: &[Item], b: &[Item]) -> Vec<Item> {
 }
 
 // Assumes both itemsets are sorted.
-pub fn intersection(a: &[Item], b: &[Item]) -> Vec<Item> {
+pub fn intersection_size(a: &[Item], b: &[Item]) -> usize {
     // Count the length required in the intersection, to avoid
     // paying for reallocations while pushing onto the end.
     let mut count = 0;
@@ -97,6 +97,14 @@ pub fn intersection(a: &[Item], b: &[Item]) -> Vec<Item> {
             bp += 1;
         }
     }
+    count
+}
+
+// Assumes both itemsets are sorted.
+pub fn intersection(a: &[Item], b: &[Item]) -> Vec<Item> {
+    // Count the length required in the intersection, to avoid
+    // paying for reallocations while pushing onto the end.
+    let count = intersection_size(a, b);
 
     let mut c: Vec<Item> = Vec::with_capacity(count);
     let mut ap = 0;
@@ -241,6 +249,25 @@ mod tests {
 
         for &(ref a, ref b, ref c) in &test_cases {
             assert_eq!(&intersection(&a, &b), c);
+        }
+    }
+
+    #[test]
+    fn test_intersection_size() {
+        use rule::intersection_size;
+        let cases: Vec<(Vec<Item>, Vec<Item>, usize)> = [
+            (vec![1], vec![2], 0),
+            (vec![1, 2, 3], vec![1, 2, 4], 2),
+            (vec![1, 2, 3], vec![2, 3, 4], 2),
+            (vec![1, 2, 3], vec![1, 3, 4], 2),
+            (vec![1, 2, 3], vec![3, 4, 5], 1),
+            (vec![3, 4, 5], vec![1, 2, 3], 1),
+        ].iter()
+            .map(|&(ref a, ref b, sz)| (to_item_vec(a), to_item_vec(b), sz))
+            .collect();
+
+        for &(ref a, ref b, sz) in cases.iter() {
+            assert_eq!(intersection_size(a, b), sz);
         }
     }
 }
