@@ -1,3 +1,4 @@
+use vec_sets::split_out_item;
 use fnv::FnvHashMap;
 use item::Item;
 use rayon::prelude::*;
@@ -8,12 +9,6 @@ use vec_sets::intersection_size;
 use rule::RuleSet;
 
 pub type ItemsetSupport = FnvHashMap<Vec<Item>, f64>;
-
-pub fn split_out_item(items: &Vec<Item>, item: Item) -> (Vec<Item>, Vec<Item>) {
-    let antecedent: Vec<Item> = items.iter().filter(|&&x| x != item).cloned().collect();
-    let consequent: Vec<Item> = vec![item];
-    (antecedent, consequent)
-}
 
 pub fn generate_itemset_rules(
     rules: &RuleSet,
