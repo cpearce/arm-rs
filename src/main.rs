@@ -97,15 +97,10 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
         // Strip out infrequent items from the transaction. This can
         // drastically reduce the tree size, and speed up loading the
         // initial tree.
-        let mut filtered_transaction: Vec<Item> = Vec::new();
-        for item in transaction {
-            if item_count.get(&item) > min_count {
-                filtered_transaction.push(item);
-            }
-        }
-        if filtered_transaction.is_empty() {
-            continue;
-        }
+        let mut filtered_transaction = transaction
+            .into_iter()
+            .filter(|&item| item_count.get(&item) > min_count)
+            .collect::<Vec<Item>>();
         item_count.sort_descending(&mut filtered_transaction);
         fptree.insert(&filtered_transaction, 1);
     }
