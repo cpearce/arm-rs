@@ -14,18 +14,27 @@ see Chapter 5 of Introduction to Data Mining, Kumar et al:
 
 To build, install Rust from [rustup.rs](https://rustup.rs/), then to build run:
 
-  `cargo build --release`
+    cargo build --release
 
 To run:
 
-  `cargo run --release -- $ARGS`
+    cargo run --release -- $ARGS
 
 For example:
 
-  `cargo run --release -- --input datasets/kosarak.csv --output rules.txt --min-support 0.05 --min-confidence 0.05 --min-lift 5`
+    cargo run --release -- \
+        --input datasets/kosarak.csv \
+        --output rules.txt \
+        --min-support 0.05 \
+        --min-confidence 0.05 \
+        --min-lift 5
 
 Input files are in CSV format, that is, one transaction of items per line, items separated by commas.
 
 To run tests:
 
-  `cargo test`
+    cargo test
+
+Auto-format code via:
+
+    cargo fmt
