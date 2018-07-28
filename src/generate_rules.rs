@@ -27,7 +27,7 @@ pub type ItemsetSupport = FnvHashMap<Vec<Item>, f64>;
 pub fn generate_itemset_rules(
     rules: &RuleSet,
     min_confidence: f64,
-    min_lift: f64,
+    min_lift: Option<f64>,
     itemset_support: &ItemsetSupport,
 ) -> RuleSet {
     // Try to combine rules with consequents of the same size together
@@ -46,15 +46,8 @@ pub fn generate_itemset_rules(
         .collect()
 }
 
-pub fn generate_rules(
-    itemsets: &Vec<ItemSet>,
-    dataset_size: u32,
-    min_confidence: f64,
-    min_lift: f64,
-) -> RuleSet {
-    // Create a lookup of itemset to support, so we can quickly determine
-    // an itemset's support during rule generation.
-    let itemset_support: ItemsetSupport = itemsets
+fn create_support_lookup(itemsets: &Vec<ItemSet>, dataset_size: u32) -> ItemsetSupport {
+    itemsets
         .iter()
         .map(|itemset| {
             (
@@ -62,7 +55,18 @@ pub fn generate_rules(
                 itemset.count as f64 / dataset_size as f64,
             )
         })
-        .collect();
+        .collect()
+}
+
+pub fn generate_rules(
+    itemsets: &Vec<ItemSet>,
+    dataset_size: u32,
+    min_confidence: f64,
+    min_lift: Option<f64>,
+) -> RuleSet {
+    // Create a lookup of itemset to support, so we can quickly determine
+    // an itemset's support during rule generation.
+    let itemset_support = create_support_lookup(itemsets, dataset_size);
 
     itemsets
         .par_iter()
@@ -79,7 +83,7 @@ pub fn generate_rules(
                         consequent,
                         &itemset_support,
                         min_confidence,
-                        min_lift,
+                        None,
                     )
                 })
                 .collect()
@@ -91,20 +95,94 @@ pub fn generate_rules(
             let mut candidates = candidates;
             while !candidates.is_empty() {
                 let next_gen =
-                    generate_itemset_rules(&candidates, min_confidence, min_lift, &itemset_support);
+                    generate_itemset_rules(&candidates, min_confidence, None, &itemset_support);
                 rules.extend(candidates);
                 candidates = next_gen;
             }
             rules
         })
+        .filter(|candidate| min_lift.map_or(true, |m| candidate.lift >= m))
         .collect()
 }
 
 #[cfg(test)]
 mod tests {
+
     use fptree::ItemSet;
     use item::Item;
     use std::collections::HashMap;
+    use rule::Rule;
+    use rule::RuleSet;
+    use super::ItemsetSupport;
+    use super::create_support_lookup;
+
+    fn naive_add_rules_for(
+        rules: &mut RuleSet,
+        items: &[Item],
+        antecedent: &mut Vec<Item>,
+        consequent: &mut Vec<Item>,
+        itemset_support: &ItemsetSupport,
+        min_confidence: f64,
+        min_lift: Option<f64>,
+    ) {
+        if items.is_empty() {
+            if antecedent.is_empty() || consequent.is_empty() {
+                return;
+            }
+            if let Some(r) = Rule::make(
+                antecedent.to_vec(),
+                consequent.to_vec(),
+                &itemset_support,
+                min_confidence,
+                min_lift,
+            ) {
+                rules.insert(r);
+            }
+            return;
+        }
+        let item = items[0];
+
+        antecedent.push(item);
+        naive_add_rules_for(rules, &items[1..], antecedent, consequent, itemset_support, min_confidence, min_lift);
+        antecedent.pop();
+
+        consequent.push(item);
+        naive_add_rules_for(rules, &items[1..], antecedent, consequent, itemset_support, min_confidence, min_lift);
+        consequent.pop();
+    }
+
+    // Naive implementation of rule generation which simply tries all
+    // combinations of rules. Compare cleverer approach with this to ensure
+    // the cleverer approach isn't over-pruning.
+    fn naive_generate_rules(
+        itemsets: &Vec<ItemSet>,
+        dataset_size: u32,
+        min_confidence: f64,
+        min_lift: Option<f64>,
+    ) -> RuleSet {
+        // Create a lookup of itemset to support, so we can quickly determine
+        // an itemset's support during rule generation.
+        let itemset_support = create_support_lookup(itemsets, dataset_size);
+        itemsets
+            .iter()
+            .map(|ref itemset| &itemset.items)
+            .filter(|ref items| items.len() > 1)
+            .fold(
+                RuleSet::default(),
+                |mut rules: RuleSet, ref items| -> RuleSet {
+                    naive_add_rules_for(
+                        &mut rules,
+                        &items,
+                        &mut vec![],
+                        &mut vec![],
+                        &itemset_support,
+                        min_confidence,
+                        min_lift,
+                    );
+                    rules
+                },
+            )
+    }
 
     fn to_item_vec(nums: &[u32]) -> Vec<Item> {
         nums.iter().map(|&i| Item::with_id(i)).collect()
@@ -158,6 +236,8 @@ mod tests {
 
         // (Antecedent, Consequent) -> (Confidence, Lift, Support)
         let expected_rules: HashMap<(Vec<Item>, Vec<Item>), (f64, f64, f64)> = [
+            ((vec![6], vec![1, 11]), (0.143, 1.542, 0.0870)),
+            ((vec![11], vec![1, 6]), (0.236, 1.772, 0.0870)),
             ((vec![218], vec![148]), (0.664, 9.400, 0.059)),
             ((vec![148, 218], vec![6]), (0.966, 1.591, 0.057)),
             ((vec![1, 6], vec![11]), (0.652, 1.772, 0.087)),
@@ -220,12 +300,24 @@ mod tests {
             })
             .collect();
 
-        let generated_rules = super::generate_rules(&kosarak, 990002, 0.05, 1.5);
+        let generated_rules = super::generate_rules(&kosarak, 990002, 0.05, Some(1.5));
         assert_eq!(generated_rules.len(), expected_rules.len());
+
+        let naive_rules = naive_generate_rules(&kosarak, 990002, 0.05, Some(1.5));
+        assert_eq!(naive_rules.len(), generated_rules.len());
+
+        for rule in &naive_rules {
+            let k = (rule.antecedent.clone(), rule.consequent.clone());
+            assert_eq!(expected_rules.contains_key(&k), true);
+            let (confidence, lift, support) = expected_rules[&k];
+            assert!(fuzzy_float_eq(rule.confidence(), confidence));
+            assert!(fuzzy_float_eq(rule.lift(), lift));
+            assert!(fuzzy_float_eq(rule.support(), support));
+        }
 
         for rule in &generated_rules {
             let k = (rule.antecedent.clone(), rule.consequent.clone());
-            assert_eq!(expected_rules.contains_key(&k), true);
+            assert_eq!(naive_rules.contains(rule), true);
             let (confidence, lift, support) = expected_rules[&k];
             assert!(fuzzy_float_eq(rule.confidence(), confidence));
             assert!(fuzzy_float_eq(rule.lift(), lift));

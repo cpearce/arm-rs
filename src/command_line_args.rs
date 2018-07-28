@@ -16,14 +16,14 @@ use std::env;
 use std::io;
 use std::process;
 
-use argparse::{ArgumentParser, Store};
+use argparse::{ArgumentParser, Store, StoreOption};
 
 pub struct Arguments {
     pub input_file_path: String,
     pub output_rules_path: String,
     pub min_support: f64,
     pub min_confidence: f64,
-    pub min_lift: f64,
+    pub min_lift: Option<f64>,
 }
 
 pub fn parse_args_or_exit() -> Arguments {
@@ -32,7 +32,7 @@ pub fn parse_args_or_exit() -> Arguments {
         output_rules_path: String::new(),
         min_support: 0.0,
         min_confidence: 0.0,
-        min_lift: 0.0,
+        min_lift: None,
     };
 
     {
@@ -80,7 +80,7 @@ pub fn parse_args_or_exit() -> Arguments {
             .refer(&mut args.min_lift)
             .add_option(
                 &["--min-lift"],
-                Store,
+                StoreOption,
                 "Minimum rule lift confidence threshold, in range [1,∞].",
             )
             .metavar("threshold");
@@ -108,10 +108,10 @@ pub fn parse_args_or_exit() -> Arguments {
         process::exit(1);
     }
 
-    if args.min_lift < 1.0 {
-        eprintln!("Minimum lift must be in range [1,∞]");
-        process::exit(1);
-    }
+    args.min_lift.as_ref().map(|&min_lift| if min_lift < 1.0 {
+            println!("Minimum lift must be in range [1,∞]");
+            process::exit(1);
+    });
 
     args
 }

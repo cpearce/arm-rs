@@ -56,7 +56,7 @@ impl Rule {
         consequent: Vec<Item>,
         itemset_support: &ItemsetSupport,
         min_confidence: f64,
-        min_lift: f64,
+        min_lift: Option<f64>,
     ) -> Option<Rule> {
         if antecedent.is_empty() || consequent.is_empty() {
             return None;
@@ -83,7 +83,7 @@ impl Rule {
         };
 
         let lift = ac_sup / (a_sup * c_sup);
-        if lift < min_lift {
+        if min_lift.is_some() && lift < min_lift.unwrap() {
             return None;
         }
 
@@ -105,7 +105,7 @@ impl Rule {
         b: &Rule,
         itemset_support: &ItemsetSupport,
         min_confidence: f64,
-        min_lift: f64,
+        min_lift: Option<f64>,
     ) -> Option<Rule> {
         let antecedent = intersection(&a.antecedent, &b.antecedent);
         let consequent = union(&a.consequent, &b.consequent);
