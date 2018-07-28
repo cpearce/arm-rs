@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use vec_sets::intersection;
-use vec_sets::union;
+use fnv::FnvHashSet;
 use generate_rules::ItemsetSupport;
 use item::Item;
 use std::hash::{Hash, Hasher};
-use fnv::FnvHashSet;
+use vec_sets::intersection;
+use vec_sets::union;
 
 pub type RuleSet = FnvHashSet<Rule>;
 

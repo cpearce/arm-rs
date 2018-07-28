@@ -117,7 +117,7 @@ where
 
 pub fn split_out_item<T>(items: &Vec<T>, item: T) -> (Vec<T>, Vec<T>)
 where
-    T : PartialEq + Clone
+    T: PartialEq + Clone,
 {
     let antecedent: Vec<T> = items.iter().filter(|x| **x != item).cloned().collect();
     let consequent: Vec<T> = vec![item];
@@ -196,7 +196,13 @@ mod tests {
             (vec![1, 2, 3], 2, (vec![1, 3], vec![2])),
             (vec![1, 2, 3], 3, (vec![1, 2], vec![3])),
         ].iter()
-            .map(|&(ref a, v, (ref b, ref c))| (to_item_vec(a), Item::with_id(v), (to_item_vec(b), to_item_vec(c))))
+            .map(|&(ref a, v, (ref b, ref c))| {
+                (
+                    to_item_vec(a),
+                    Item::with_id(v),
+                    (to_item_vec(b), to_item_vec(c)),
+                )
+            })
             .collect();
 
         for (a, v, (b, c)) in cases.into_iter() {

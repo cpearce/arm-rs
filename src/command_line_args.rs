@@ -13,8 +13,8 @@
 // limitations under the License.
 
 use std::env;
-use std::process;
 use std::io;
+use std::process;
 
 use argparse::{ArgumentParser, Store};
 

@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::fs::File;
-use std::io::BufReader;
-use std::io::prelude::*;
 use item::Item;
 use itemizer::Itemizer;
 use std::collections::HashSet;
+use std::fs::File;
+use std::io::prelude::*;
+use std::io::BufReader;
 
 pub struct TransactionReader<'a> {
     reader: BufReader<File>,
@@ -44,7 +44,8 @@ impl<'a> Iterator for TransactionReader<'a> {
             if len == 0 {
                 return None;
             }
-            let splits = line.split(",")
+            let splits = line
+                .split(",")
                 .map(|s| self.itemizer.id_of(s.trim()))
                 .collect::<HashSet<Item>>()
                 .iter()

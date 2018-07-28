@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use fnv::FnvHashMap;
 use item::Item;
 use item_counter::ItemCounter;
-use fnv::FnvHashMap;
 
 pub struct Itemizer {
     next_item_id: u32,

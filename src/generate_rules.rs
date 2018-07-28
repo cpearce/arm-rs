@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use vec_sets::split_out_item;
 use fnv::FnvHashMap;
-use item::Item;
-use rayon::prelude::*;
-use itertools::Itertools;
 use fptree::ItemSet;
+use item::Item;
+use itertools::Itertools;
+use rayon::prelude::*;
 use rule::Rule;
-use vec_sets::intersection_size;
 use rule::RuleSet;
+use vec_sets::intersection_size;
+use vec_sets::split_out_item;
 
 pub type ItemsetSupport = FnvHashMap<Vec<Item>, f64>;
 

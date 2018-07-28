@@ -17,30 +17,30 @@ extern crate fnv;
 extern crate itertools;
 extern crate rayon;
 
-mod index;
-mod item;
-mod vec_sets;
-mod item_counter;
-mod itemizer;
-mod transaction_reader;
+mod command_line_args;
 mod fptree;
 mod generate_rules;
-mod command_line_args;
+mod index;
+mod item;
+mod item_counter;
+mod itemizer;
 mod rule;
+mod transaction_reader;
+mod vec_sets;
 
-use rule::RuleSet;
-use itemizer::Itemizer;
+use command_line_args::{parse_args_or_exit, Arguments};
+use fptree::{fp_growth, FPTree, ItemSet};
+use generate_rules::generate_rules;
 use item::Item;
 use item_counter::ItemCounter;
-use transaction_reader::TransactionReader;
-use fptree::{FPTree, fp_growth, ItemSet};
-use generate_rules::generate_rules;
-use command_line_args::{Arguments, parse_args_or_exit};
+use itemizer::Itemizer;
+use rule::RuleSet;
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::process;
 use std::time::{Duration, Instant};
+use transaction_reader::TransactionReader;
 
 fn count_item_frequencies(reader: TransactionReader) -> Result<(ItemCounter, usize), Box<Error>> {
     let mut item_count: ItemCounter = ItemCounter::new();

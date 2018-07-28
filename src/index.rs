@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use item::Item;
 #[cfg(test)]
 use itemizer::Itemizer;
-use item::Item;
 
 pub struct Index {
     index: Vec<Vec<usize>>,
@@ -95,8 +95,8 @@ mod tests {
     #[test]
     fn test_index() {
         use super::Index;
-        use super::Itemizer;
         use super::Item;
+        use super::Itemizer;
 
         let mut index = Index::new();
         let transactions = vec![
@@ -109,7 +109,8 @@ mod tests {
         ];
         let mut itemizer: Itemizer = Itemizer::new();
         for line in &transactions {
-            let transaction = line.iter()
+            let transaction = line
+                .iter()
                 .map(|s| itemizer.id_of(s.trim()))
                 .collect::<Vec<Item>>();
             index.insert(&transaction);

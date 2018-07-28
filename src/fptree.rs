@@ -15,10 +15,10 @@
 use item::Item;
 use item_counter::ItemCounter;
 use itemizer::Itemizer;
-use rayon::prelude::*;
 use itertools::Itertools;
-use std::hash::{Hash, Hasher};
+use rayon::prelude::*;
 use std::cmp;
+use std::hash::{Hash, Hasher};
 
 #[derive(Eq, Debug)]
 struct FPNode {
