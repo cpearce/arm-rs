@@ -12,15 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#[cfg(test)]
 use item::Item;
 #[cfg(test)]
 use itemizer::Itemizer;
 
+#[cfg(test)]
 pub struct Index {
     index: Vec<Vec<usize>>,
     transaction_count: usize,
 }
 
+#[cfg(test)]
 impl Index {
     pub fn new() -> Index {
         Index {
