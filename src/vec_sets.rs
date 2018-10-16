@@ -140,7 +140,8 @@ mod tests {
             (vec![1, 2, 3], vec![3, 4, 5, 6], vec![1, 2, 3, 4, 5, 6]),
             (vec![], vec![1], vec![1]),
             (vec![1], vec![], vec![1]),
-        ].iter()
+        ]
+            .iter()
             .map(|&(ref a, ref b, ref u)| (to_item_vec(a), to_item_vec(b), to_item_vec(u)))
             .collect();
 
@@ -159,7 +160,8 @@ mod tests {
             (vec![1, 2, 3], vec![3, 4, 5, 6], vec![3]),
             (vec![], vec![1], vec![]),
             (vec![1], vec![], vec![]),
-        ].iter()
+        ]
+            .iter()
             .map(|&(ref a, ref b, ref u)| (to_item_vec(a), to_item_vec(b), to_item_vec(u)))
             .collect();
 
@@ -178,7 +180,8 @@ mod tests {
             (vec![1, 2, 3], vec![1, 3, 4], 2),
             (vec![1, 2, 3], vec![3, 4, 5], 1),
             (vec![3, 4, 5], vec![1, 2, 3], 1),
-        ].iter()
+        ]
+            .iter()
             .map(|&(ref a, ref b, sz)| (to_item_vec(a), to_item_vec(b), sz))
             .collect();
 
@@ -195,15 +198,15 @@ mod tests {
             (vec![1, 2, 3], 1, (vec![2, 3], vec![1])),
             (vec![1, 2, 3], 2, (vec![1, 3], vec![2])),
             (vec![1, 2, 3], 3, (vec![1, 2], vec![3])),
-        ].iter()
+        ]
+            .iter()
             .map(|&(ref a, v, (ref b, ref c))| {
                 (
                     to_item_vec(a),
                     Item::with_id(v),
                     (to_item_vec(b), to_item_vec(c)),
                 )
-            })
-            .collect();
+            }).collect();
 
         for (a, v, (b, c)) in cases.into_iter() {
             let split = split_out_item(&a, v);

@@ -250,8 +250,7 @@ pub fn fp_growth(
 
             result.push(ItemSet::new(itemset, new_path_count));
             result
-        })
-        .collect::<Vec<ItemSet>>();
+        }).collect::<Vec<ItemSet>>();
 
     itemsets.extend(x);
     itemsets

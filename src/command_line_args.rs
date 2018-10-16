@@ -52,8 +52,7 @@ pub fn parse_args_or_exit() -> Arguments {
                 Store,
                 "File path in which to store output rules. \
                  Format: antecedent -> consequent, confidence, lift, support.",
-            )
-            .metavar("file_path")
+            ).metavar("file_path")
             .required();
 
         parser
@@ -62,8 +61,7 @@ pub fn parse_args_or_exit() -> Arguments {
                 &["--min-support"],
                 Store,
                 "Minimum itemset support threshold, in range [0,1].",
-            )
-            .metavar("threshold")
+            ).metavar("threshold")
             .required();
 
         parser
@@ -72,8 +70,7 @@ pub fn parse_args_or_exit() -> Arguments {
                 &["--min-confidence"],
                 Store,
                 "Minimum rule confidence threshold, in range [0,1].",
-            )
-            .metavar("threshold")
+            ).metavar("threshold")
             .required();
 
         parser
@@ -82,8 +79,7 @@ pub fn parse_args_or_exit() -> Arguments {
                 &["--min-lift"],
                 StoreOption,
                 "Minimum rule lift confidence threshold, in range [1,∞].",
-            )
-            .metavar("threshold");
+            ).metavar("threshold");
 
         if env::args().count() == 1 {
             parser.print_help("Usage:", &mut io::stderr()).unwrap();
@@ -108,9 +104,11 @@ pub fn parse_args_or_exit() -> Arguments {
         process::exit(1);
     }
 
-    args.min_lift.as_ref().map(|&min_lift| if min_lift < 1.0 {
+    args.min_lift.as_ref().map(|&min_lift| {
+        if min_lift < 1.0 {
             println!("Minimum lift must be in range [1,∞]");
             process::exit(1);
+        }
     });
 
     args

@@ -39,11 +39,9 @@ pub fn generate_itemset_rules(
         .filter(|&(ref rule1, ref rule2)| {
             let overlap = intersection_size(&rule1.consequent, &rule2.consequent);
             overlap == rule2.consequent.len() - 1
-        })
-        .filter_map(|(rule1, rule2)| {
+        }).filter_map(|(rule1, rule2)| {
             Rule::merge(rule1, rule2, itemset_support, min_confidence, min_lift)
-        })
-        .collect()
+        }).collect()
 }
 
 fn create_support_lookup(itemsets: &Vec<ItemSet>, dataset_size: u32) -> ItemsetSupport {
@@ -54,8 +52,7 @@ fn create_support_lookup(itemsets: &Vec<ItemSet>, dataset_size: u32) -> ItemsetS
                 itemset.items.clone(),
                 itemset.count as f64 / dataset_size as f64,
             )
-        })
-        .collect()
+        }).collect()
 }
 
 pub fn generate_rules(
@@ -85,10 +82,8 @@ pub fn generate_rules(
                         min_confidence,
                         None,
                     )
-                })
-                .collect()
-        })
-        .flat_map(|candidates| -> RuleSet {
+                }).collect()
+        }).flat_map(|candidates| -> RuleSet {
             // Create subsequent generations by merging pairs of rules of
             // whose consequent is size N and which have N-1 items in common.
             let mut rules: RuleSet = RuleSet::default();
@@ -100,21 +95,20 @@ pub fn generate_rules(
                 candidates = next_gen;
             }
             rules
-        })
-        .filter(|candidate| min_lift.map_or(true, |m| candidate.lift >= m))
+        }).filter(|candidate| min_lift.map_or(true, |m| candidate.lift >= m))
         .collect()
 }
 
 #[cfg(test)]
 mod tests {
 
+    use super::create_support_lookup;
+    use super::ItemsetSupport;
     use fptree::ItemSet;
     use item::Item;
-    use std::collections::HashMap;
     use rule::Rule;
     use rule::RuleSet;
-    use super::ItemsetSupport;
-    use super::create_support_lookup;
+    use std::collections::HashMap;
 
     fn naive_add_rules_for(
         rules: &mut RuleSet,
@@ -143,11 +137,27 @@ mod tests {
         let item = items[0];
 
         antecedent.push(item);
-        naive_add_rules_for(rules, &items[1..], antecedent, consequent, itemset_support, min_confidence, min_lift);
+        naive_add_rules_for(
+            rules,
+            &items[1..],
+            antecedent,
+            consequent,
+            itemset_support,
+            min_confidence,
+            min_lift,
+        );
         antecedent.pop();
 
         consequent.push(item);
-        naive_add_rules_for(rules, &items[1..], antecedent, consequent, itemset_support, min_confidence, min_lift);
+        naive_add_rules_for(
+            rules,
+            &items[1..],
+            antecedent,
+            consequent,
+            itemset_support,
+            min_confidence,
+            min_lift,
+        );
         consequent.pop();
     }
 
@@ -230,7 +240,8 @@ mod tests {
             (vec![3], 450031),
             (vec![6, 27], 59418),
             (vec![27], 72134),
-        ].iter()
+        ]
+            .iter()
             .map(|&(ref i, c)| ItemSet::new(to_item_vec(&i), c))
             .collect();
 
@@ -294,11 +305,11 @@ mod tests {
             ((vec![6, 218], vec![148]), (0.732, 10.360, 0.057)),
             ((vec![6], vec![7, 11]), (0.093, 1.610, 0.056)),
             ((vec![11, 148], vec![6, 218]), (0.894, 11.398, 0.050)),
-        ].iter()
+        ]
+            .iter()
             .map(|&((ref a, ref c), (cnf, lft, sup))| {
                 ((to_item_vec(a), to_item_vec(c)), (cnf, lft, sup))
-            })
-            .collect();
+            }).collect();
 
         let generated_rules = super::generate_rules(&kosarak, 990002, 0.05, Some(1.5));
         assert_eq!(generated_rules.len(), expected_rules.len());
