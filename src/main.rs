@@ -89,7 +89,7 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
     // each transaction into the tree sorted by item frequency.
     let timer = Instant::now();
     let mut fptree = FPTree::new();
-    let min_count = (args.min_support * (num_transactions as f64)).ceil() as u32;
+    let min_count = 1.max((args.min_support * (num_transactions as f64)).ceil() as u32);
     for transaction in TransactionReader::new(&args.input_file_path, &mut itemizer) {
         // Strip out infrequent items from the transaction. This can
         // drastically reduce the tree size, and speed up loading the
