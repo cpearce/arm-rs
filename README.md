@@ -1,4 +1,5 @@
 # arm-rs
+[![Build Status](https://travis-ci.org/cpearce/arm-rs.svg?branch=master)](https://travis-ci.org/cpearce/arm-rs)
 
 An implementation of association rule mining via the FPGrowth algorithm in Rust.
 
