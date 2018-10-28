@@ -15,34 +15,11 @@
 use fnv::FnvHashMap;
 use fptree::ItemSet;
 use item::Item;
-use itertools::Itertools;
 use rayon::prelude::*;
 use rule::Rule;
-use rule::RuleSet;
-use vec_sets::intersection_size;
-use vec_sets::split_out_item;
+use vec_sets::{split_out, split_out_item, union};
 
 pub type ItemsetSupport = FnvHashMap<Vec<Item>, f64>;
-
-pub fn generate_itemset_rules(
-    rules: &RuleSet,
-    min_confidence: f64,
-    min_lift: Option<f64>,
-    itemset_support: &ItemsetSupport,
-) -> RuleSet {
-    // Try to combine rules with consequents of the same size together
-    // which have size-1 items in common.
-    rules
-        .iter()
-        .tuple_combinations()
-        .filter(|&(ref rule1, ref rule2)| &rule1.consequent.len() == &rule2.consequent.len())
-        .filter(|&(ref rule1, ref rule2)| {
-            let overlap = intersection_size(&rule1.consequent, &rule2.consequent);
-            overlap == rule2.consequent.len() - 1
-        }).filter_map(|(rule1, rule2)| {
-            Rule::merge(rule1, rule2, itemset_support, min_confidence, min_lift)
-        }).collect()
-}
 
 fn create_support_lookup(itemsets: &Vec<ItemSet>, dataset_size: u32) -> ItemsetSupport {
     itemsets
@@ -55,47 +32,129 @@ fn create_support_lookup(itemsets: &Vec<ItemSet>, dataset_size: u32) -> ItemsetS
         }).collect()
 }
 
+fn stats(
+    support: f64,
+    antecedent: &[Item],
+    consequent: &[Item],
+    itemset_support: &ItemsetSupport,
+) -> (f64, f64) {
+    let a_sup = itemset_support[antecedent];
+    let confidence = support / a_sup;
+    let c_sup = itemset_support[consequent];
+    let lift = support / (a_sup * c_sup);
+    (confidence, lift)
+}
+
+// Returns the number of items that match in a and b, starting from offset 0.
+fn prefx_match_len(a: &[Item], b: &[Item]) -> usize {
+    if a.len() != b.len() {
+        panic!("prefx_match_len called on pair with different length");
+    }
+    for i in 0..a.len() {
+        if a[i] != b[i] {
+            return i
+        }
+    }
+    a.len()
+}
+
+fn generate_rules_for_itemset(
+    itemset: &[Item],
+    support: f64,
+    itemset_support: &ItemsetSupport,
+    min_confidence: f64,
+    min_lift: f64,
+) -> Vec<Rule>
+{
+    // Generate rules via appgenrules algorithm. Combine consequents until
+    // all combinations have been tested.
+    let mut output = vec![];
+    // First level consequent candidates are all single items in the itemset.
+    let mut candidates : Vec<Vec<Item>> = vec![];
+    for item in itemset.iter() {
+        let (antecedent, consequent) = split_out_item(itemset, *item);
+        let (confidence, lift) = stats(support, &antecedent, &consequent, &itemset_support);
+        if confidence < min_confidence {
+            continue;
+        }
+        if lift >= min_lift {
+            output.push(Rule{
+                antecedent,
+                consequent: consequent.clone(),
+                confidence,
+                lift,
+                support,
+            });
+        }
+        candidates.push(consequent)
+    }
+
+    // Create subsequent generations by merging consequents which have size-1 items
+    // in common in the consequent.
+
+    let k = itemset.len();
+    while !candidates.is_empty() && candidates[0].len() + 1 < k {
+        // Note: candidates must be sorted here.
+        let mut next_gen = vec![];
+        let m = candidates[0].len(); // size of consequent.
+        for i1 in 0..candidates.len() {
+            for i2 in i1+1..candidates.len() {
+                let c1 = &candidates[i1];
+                let c2 = &candidates[i2];
+                if prefx_match_len(c1, c2) != m-1 {
+                    // Consequents in the candidates list are sorted, and the
+                    // candidates list itself is sorted. So we can stop
+                    // testing combinations once our iteration reaches another
+                    // candidate that no longer shares an m-1 prefix. Stopping
+                    // the iteration here is a significant optimization. This
+                    // ensures that we don't generate or test duplicate
+                    // rules.
+                    break;
+                }
+                let consequent = union(c1, c2);
+                let antecedent = split_out(&itemset, &consequent);
+                let (confidence, lift) = stats(support, &antecedent, &consequent, &itemset_support);
+                if confidence < min_confidence {
+                    continue;
+                }
+                if lift >= min_lift {
+                    output.push(Rule{
+                        antecedent,
+                        consequent: consequent.clone(),
+                        confidence,
+                        lift,
+                        support,
+                    });
+                }
+                next_gen.push(consequent)
+            }
+        }
+        candidates = next_gen;
+        candidates.sort();
+    }
+
+    output
+}
+
 pub fn generate_rules(
     itemsets: &Vec<ItemSet>,
     dataset_size: u32,
     min_confidence: f64,
     min_lift: Option<f64>,
-) -> RuleSet {
+) -> Vec<Vec<Rule>> {
     // Create a lookup of itemset to support, so we can quickly determine
     // an itemset's support during rule generation.
     let itemset_support = create_support_lookup(itemsets, dataset_size);
 
+    let min_lift = min_lift.unwrap_or(0.0);
+
     itemsets
         .par_iter()
-        .map(|ref itemset| &itemset.items)
-        .filter(|ref items| items.len() > 1)
-        .map(|ref items| -> RuleSet {
-            // First generation candidates are all the rules with consequents of size 1.
-            items
-                .iter()
-                .filter_map(|&item| -> Option<Rule> {
-                    let (antecedent, consequent) = split_out_item(&items, item);
-                    Rule::make(
-                        antecedent,
-                        consequent,
-                        &itemset_support,
-                        min_confidence,
-                        None,
-                    )
-                }).collect()
-        }).flat_map(|candidates| -> RuleSet {
-            // Create subsequent generations by merging pairs of rules of
-            // whose consequent is size N and which have N-1 items in common.
-            let mut rules: RuleSet = RuleSet::default();
-            let mut candidates = candidates;
-            while !candidates.is_empty() {
-                let next_gen =
-                    generate_itemset_rules(&candidates, min_confidence, None, &itemset_support);
-                rules.extend(candidates);
-                candidates = next_gen;
-            }
-            rules
-        }).filter(|candidate| min_lift.map_or(true, |m| candidate.lift >= m))
+        .filter(|&i| i.items.len() > 1)
+        .map(|ref i| -> Vec<Rule> {
+            let support = i.count as f64 / dataset_size as f64;
+            generate_rules_for_itemset(&i.items, support, &itemset_support, min_confidence, min_lift)
+        })
         .collect()
 }
 
@@ -104,11 +163,15 @@ mod tests {
 
     use super::create_support_lookup;
     use super::ItemsetSupport;
+    use super::stats;
     use fptree::ItemSet;
     use item::Item;
     use rule::Rule;
-    use rule::RuleSet;
     use std::collections::HashMap;
+    use fnv::FnvHashSet;
+    use vec_sets::union;
+
+    type RuleSet = FnvHashSet<Rule>;
 
     fn naive_add_rules_for(
         rules: &mut RuleSet,
@@ -123,14 +186,18 @@ mod tests {
             if antecedent.is_empty() || consequent.is_empty() {
                 return;
             }
-            if let Some(r) = Rule::make(
-                antecedent.to_vec(),
-                consequent.to_vec(),
-                &itemset_support,
-                min_confidence,
-                min_lift,
-            ) {
-                rules.insert(r);
+            let both = union(antecedent, consequent);
+            let support = itemset_support[&both];
+            let (confidence, lift) = stats(support, &antecedent, &consequent, &itemset_support);
+            let min_lift = min_lift.unwrap_or(0.0);
+            if confidence >= min_confidence && lift >= min_lift {
+                rules.insert(Rule {
+                    antecedent: antecedent.to_vec(),
+                    consequent: consequent.to_vec(),
+                    confidence,
+                    lift,
+                    support,
+                });
             }
             return;
         }
@@ -312,27 +379,30 @@ mod tests {
             }).collect();
 
         let generated_rules = super::generate_rules(&kosarak, 990002, 0.05, Some(1.5));
-        assert_eq!(generated_rules.len(), expected_rules.len());
+        let num_rules: usize = generated_rules.iter().map(|ref x| x.len()).sum();
+        assert_eq!(num_rules, expected_rules.len());
 
         let naive_rules = naive_generate_rules(&kosarak, 990002, 0.05, Some(1.5));
-        assert_eq!(naive_rules.len(), generated_rules.len());
+        assert_eq!(naive_rules.len(), num_rules);
 
         for rule in &naive_rules {
             let k = (rule.antecedent.clone(), rule.consequent.clone());
             assert_eq!(expected_rules.contains_key(&k), true);
             let (confidence, lift, support) = expected_rules[&k];
-            assert!(fuzzy_float_eq(rule.confidence(), confidence));
-            assert!(fuzzy_float_eq(rule.lift(), lift));
-            assert!(fuzzy_float_eq(rule.support(), support));
+            assert!(fuzzy_float_eq(rule.confidence, confidence));
+            assert!(fuzzy_float_eq(rule.lift, lift));
+            assert!(fuzzy_float_eq(rule.support, support));
         }
 
-        for rule in &generated_rules {
-            let k = (rule.antecedent.clone(), rule.consequent.clone());
-            assert_eq!(naive_rules.contains(rule), true);
-            let (confidence, lift, support) = expected_rules[&k];
-            assert!(fuzzy_float_eq(rule.confidence(), confidence));
-            assert!(fuzzy_float_eq(rule.lift(), lift));
-            assert!(fuzzy_float_eq(rule.support(), support));
+        for chunk in &generated_rules {
+            for rule in chunk {
+                let k = (rule.antecedent.clone(), rule.consequent.clone());
+                assert_eq!(naive_rules.contains(rule), true);
+                let (confidence, lift, support) = expected_rules[&k];
+                assert!(fuzzy_float_eq(rule.confidence, confidence));
+                assert!(fuzzy_float_eq(rule.lift, lift));
+                assert!(fuzzy_float_eq(rule.support, support));
+            }
         }
     }
 }
