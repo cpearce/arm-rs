@@ -14,7 +14,6 @@
 
 use item::Item;
 use itemizer::Itemizer;
-use std::collections::HashSet;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
@@ -44,16 +43,65 @@ impl<'a> Iterator for TransactionReader<'a> {
             if len == 0 {
                 return None;
             }
-            let splits = line
+            let mut splits = line
                 .split(",")
                 .map(|s| self.itemizer.id_of(s.trim()))
-                .collect::<HashSet<Item>>()
-                .iter()
-                .cloned()
                 .collect::<Vec<Item>>();
+
+            // Some input files have transactions with duplicates items.
+            // Remove any duplicates here.
+            splits.sort();
+            dedupe_sorted(&mut splits);
+
             if splits.len() > 0 {
                 return Some(splits);
             }
         }
     }
+}
+
+
+fn dedupe_sorted(v: &mut Vec<Item>) {
+    let mut i = 0;
+    let mut k = 0;
+    while i < v.len() {
+        v[k] = v[i];
+        while i < v.len() && v[k] == v[i] {
+            i += 1;
+        }
+        k += 1;
+    }
+    assert!(k <= v.len());
+    v.resize(k, Item::null());
+}
+
+#[cfg(test)]
+mod tests {
+
+    use item::Item;
+
+
+    fn to_item_vec(nums: &[u32]) -> Vec<Item> {
+        nums.iter().map(|&i| Item::with_id(i)).collect()
+    }
+    #[test]
+    fn test_dedupe_sorted() {
+        let cases = [
+            (vec![], vec![]),
+            (vec![1], vec![1]),
+            (vec![1, 2], vec![1, 2]),
+            (vec![1, 1], vec![1]),
+            (vec![1, 1, 1], vec![1]),
+            (vec![1,1,2,2], vec![1,2]),
+            (vec![1,2,3], vec![1,2,3]),
+            (vec![1,2,2,3], vec![1,2,3]),
+        ];
+        for (mut v,e) in cases.iter().map(|(a, b)| (to_item_vec(a), to_item_vec(b))) {
+            super::dedupe_sorted(&mut v);
+            assert!(v == e);
+
+        }
+    }
+
+
 }
