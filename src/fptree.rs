@@ -42,7 +42,7 @@ impl Hash for FPNode {
 }
 
 pub struct FPTree {
-    nodes: Vec<FPNode>,
+    nodes: Vec<Vec<FPNode>>,
     item_count: ItemCounter,
     next_node_id: usize,
     item_lists: Vec<Vec<usize>>,
@@ -64,10 +64,13 @@ impl FPNode {
     }
 }
 
+static FPTREE_SPLAY: usize = 1 << FPTREE_COHORT_SHIFT;
+static FPTREE_COHORT_SHIFT: usize = 8;
+
 impl FPTree {
     pub fn new() -> FPTree {
         let mut tree = FPTree {
-            nodes: vec![],
+            nodes: Vec::with_capacity(FPTREE_SPLAY),
             item_count: ItemCounter::new(),
             next_node_id: 0,
             item_lists: Vec::new(),
@@ -79,8 +82,15 @@ impl FPTree {
 
     pub fn add_node(&mut self, parent: usize, item: Item) -> usize {
         let id = self.next_node_id;
-        self.nodes.push(FPNode::new(id, item, parent));
         self.next_node_id += 1;
+        let (cohort, element) = self.sub_indicies_of(id);
+        // Should only be at most 1 element too small.
+        assert!(cohort <= self.nodes.len());
+        if self.nodes.len() <= cohort {
+            self.nodes.push(Vec::with_capacity(FPTREE_SPLAY));
+        }
+        assert!(element == self.nodes[cohort].len());
+        self.nodes[cohort].push(FPNode::new(id, item, parent));
         assert!(self.get_node(id).item == item);
         self.get_node_mut(parent).children.push(id);
         self.add_to_item_list(item, id);
@@ -98,12 +108,24 @@ impl FPTree {
         self.item_lists[index].push(id);
     }
 
+    fn sub_indicies_of(&self, id: usize) -> (usize, usize) {
+        (id >> FPTREE_COHORT_SHIFT, id & ((1 << FPTREE_COHORT_SHIFT) - 1))
+    }
+
     fn get_node_mut(&mut self, id: usize) -> &mut FPNode {
-        &mut self.nodes[id]
+        let (cohort, index) = self.sub_indicies_of(id);
+        if cohort >= self.nodes.len() || index >= self.nodes[cohort].len() {
+            panic!("Invalid node id")
+        }
+        &mut self.nodes[cohort][index]
     }
 
     fn get_node(&self, id: usize) -> &FPNode {
-        &self.nodes[id]
+        let (cohort, index) = self.sub_indicies_of(id);
+        if cohort >= self.nodes.len() || index >= self.nodes[cohort].len() {
+            panic!("Invalid node id")
+        }
+        &self.nodes[cohort][index]
     }
 
     pub fn child_of(&self, id: usize, item: Item) -> Option<usize> {
