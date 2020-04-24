@@ -109,7 +109,10 @@ impl FPTree {
     }
 
     fn sub_indicies_of(&self, id: usize) -> (usize, usize) {
-        (id >> FPTREE_COHORT_SHIFT, id & ((1 << FPTREE_COHORT_SHIFT) - 1))
+        (
+            id >> FPTREE_COHORT_SHIFT,
+            id & ((1 << FPTREE_COHORT_SHIFT) - 1),
+        )
     }
 
     fn get_node_mut(&mut self, id: usize) -> &mut FPNode {
@@ -251,7 +254,8 @@ pub fn fp_growth(
 
             result.push(ItemSet::new(itemset, new_path_count));
             result
-        }).collect::<Vec<ItemSet>>();
+        })
+        .collect::<Vec<ItemSet>>();
 
     itemsets.extend(x);
     itemsets

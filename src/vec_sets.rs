@@ -117,9 +117,9 @@ mod tests {
             (vec![], vec![1], vec![1]),
             (vec![1], vec![], vec![1]),
         ]
-            .iter()
-            .map(|&(ref a, ref b, ref u)| (to_item_vec(a), to_item_vec(b), to_item_vec(u)))
-            .collect();
+        .iter()
+        .map(|&(ref a, ref b, ref u)| (to_item_vec(a), to_item_vec(b), to_item_vec(u)))
+        .collect();
 
         for &(ref a, ref b, ref c) in &test_cases {
             assert_eq!(&union(&a, &b), c);
@@ -135,14 +135,15 @@ mod tests {
             (vec![1, 2, 3], 2, (vec![1, 3], vec![2])),
             (vec![1, 2, 3], 3, (vec![1, 2], vec![3])),
         ]
-            .iter()
-            .map(|&(ref a, v, (ref b, ref c))| {
-                (
-                    to_item_vec(a),
-                    Item::with_id(v),
-                    (to_item_vec(b), to_item_vec(c)),
-                )
-            }).collect();
+        .iter()
+        .map(|&(ref a, v, (ref b, ref c))| {
+            (
+                to_item_vec(a),
+                Item::with_id(v),
+                (to_item_vec(b), to_item_vec(c)),
+            )
+        })
+        .collect();
 
         for (a, v, (b, c)) in cases.into_iter() {
             let split = split_out_item(&a, v);

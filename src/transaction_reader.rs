@@ -60,7 +60,6 @@ impl<'a> Iterator for TransactionReader<'a> {
     }
 }
 
-
 fn dedupe_sorted(v: &mut Vec<Item>) {
     let mut i = 0;
     let mut k = 0;
@@ -80,7 +79,6 @@ mod tests {
 
     use item::Item;
 
-
     fn to_item_vec(nums: &[u32]) -> Vec<Item> {
         nums.iter().map(|&i| Item::with_id(i)).collect()
     }
@@ -92,16 +90,13 @@ mod tests {
             (vec![1, 2], vec![1, 2]),
             (vec![1, 1], vec![1]),
             (vec![1, 1, 1], vec![1]),
-            (vec![1,1,2,2], vec![1,2]),
-            (vec![1,2,3], vec![1,2,3]),
-            (vec![1,2,2,3], vec![1,2,3]),
+            (vec![1, 1, 2, 2], vec![1, 2]),
+            (vec![1, 2, 3], vec![1, 2, 3]),
+            (vec![1, 2, 2, 3], vec![1, 2, 3]),
         ];
-        for (mut v,e) in cases.iter().map(|(a, b)| (to_item_vec(a), to_item_vec(b))) {
+        for (mut v, e) in cases.iter().map(|(a, b)| (to_item_vec(a), to_item_vec(b))) {
             super::dedupe_sorted(&mut v);
             assert!(v == e);
-
         }
     }
-
-
 }

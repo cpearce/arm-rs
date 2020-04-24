@@ -170,9 +170,7 @@ fn write_rules(
             writeln!(
                 output,
                 ",{},{},{}",
-                rule.confidence,
-                rule.lift,
-                rule.support,
+                rule.confidence, rule.lift, rule.support,
             )?;
         }
     }

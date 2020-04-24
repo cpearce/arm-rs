@@ -29,7 +29,8 @@ fn create_support_lookup(itemsets: &Vec<ItemSet>, dataset_size: u32) -> ItemsetS
                 itemset.items.clone(),
                 itemset.count as f64 / dataset_size as f64,
             )
-        }).collect()
+        })
+        .collect()
 }
 
 fn stats(
@@ -52,7 +53,7 @@ fn prefx_match_len(a: &[Item], b: &[Item]) -> usize {
     }
     for i in 0..a.len() {
         if a[i] != b[i] {
-            return i
+            return i;
         }
     }
     a.len()
@@ -64,13 +65,12 @@ fn generate_rules_for_itemset(
     itemset_support: &ItemsetSupport,
     min_confidence: f64,
     min_lift: f64,
-) -> Vec<Rule>
-{
+) -> Vec<Rule> {
     // Generate rules via appgenrules algorithm. Combine consequents until
     // all combinations have been tested.
     let mut output = vec![];
     // First level consequent candidates are all single items in the itemset.
-    let mut candidates : Vec<Vec<Item>> = vec![];
+    let mut candidates: Vec<Vec<Item>> = vec![];
     for item in itemset.iter() {
         let (antecedent, consequent) = split_out_item(itemset, *item);
         let (confidence, lift) = stats(support, &antecedent, &consequent, &itemset_support);
@@ -78,7 +78,7 @@ fn generate_rules_for_itemset(
             continue;
         }
         if lift >= min_lift {
-            output.push(Rule{
+            output.push(Rule {
                 antecedent,
                 consequent: consequent.clone(),
                 confidence,
@@ -98,10 +98,10 @@ fn generate_rules_for_itemset(
         let mut next_gen = vec![];
         let m = candidates[0].len(); // size of consequent.
         for i1 in 0..candidates.len() {
-            for i2 in i1+1..candidates.len() {
+            for i2 in i1 + 1..candidates.len() {
                 let c1 = &candidates[i1];
                 let c2 = &candidates[i2];
-                if prefx_match_len(c1, c2) != m-1 {
+                if prefx_match_len(c1, c2) != m - 1 {
                     // Consequents in the candidates list are sorted, and the
                     // candidates list itself is sorted. So we can stop
                     // testing combinations once our iteration reaches another
@@ -118,7 +118,7 @@ fn generate_rules_for_itemset(
                     continue;
                 }
                 if lift >= min_lift {
-                    output.push(Rule{
+                    output.push(Rule {
                         antecedent,
                         consequent: consequent.clone(),
                         confidence,
@@ -153,7 +153,13 @@ pub fn generate_rules(
         .filter(|&i| i.items.len() > 1)
         .map(|ref i| -> Vec<Rule> {
             let support = i.count as f64 / dataset_size as f64;
-            generate_rules_for_itemset(&i.items, support, &itemset_support, min_confidence, min_lift)
+            generate_rules_for_itemset(
+                &i.items,
+                support,
+                &itemset_support,
+                min_confidence,
+                min_lift,
+            )
         })
         .collect()
 }
@@ -162,13 +168,13 @@ pub fn generate_rules(
 mod tests {
 
     use super::create_support_lookup;
-    use super::ItemsetSupport;
     use super::stats;
+    use super::ItemsetSupport;
+    use fnv::FnvHashSet;
     use fptree::ItemSet;
     use item::Item;
     use rule::Rule;
     use std::collections::HashMap;
-    use fnv::FnvHashSet;
     use vec_sets::union;
 
     type RuleSet = FnvHashSet<Rule>;
@@ -308,9 +314,9 @@ mod tests {
             (vec![6, 27], 59418),
             (vec![27], 72134),
         ]
-            .iter()
-            .map(|&(ref i, c)| ItemSet::new(to_item_vec(&i), c))
-            .collect();
+        .iter()
+        .map(|&(ref i, c)| ItemSet::new(to_item_vec(&i), c))
+        .collect();
 
         // (Antecedent, Consequent) -> (Confidence, Lift, Support)
         let expected_rules: HashMap<(Vec<Item>, Vec<Item>), (f64, f64, f64)> = [
@@ -373,10 +379,11 @@ mod tests {
             ((vec![6], vec![7, 11]), (0.093, 1.610, 0.056)),
             ((vec![11, 148], vec![6, 218]), (0.894, 11.398, 0.050)),
         ]
-            .iter()
-            .map(|&((ref a, ref c), (cnf, lft, sup))| {
-                ((to_item_vec(a), to_item_vec(c)), (cnf, lft, sup))
-            }).collect();
+        .iter()
+        .map(|&((ref a, ref c), (cnf, lft, sup))| {
+            ((to_item_vec(a), to_item_vec(c)), (cnf, lft, sup))
+        })
+        .collect();
 
         let generated_rules = super::generate_rules(&kosarak, 990002, 0.05, Some(1.5));
         let num_rules: usize = generated_rules.iter().map(|ref x| x.len()).sum();
