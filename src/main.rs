@@ -77,6 +77,15 @@ fn mine_fp_growth(args: &Arguments) -> Result<(), Box<dyn Error>> {
         num_transactions
     );
 
+    // We work with items as integers; we convert from strings to int
+    // in the itemizer. We store itemsets as a sorted list of items.
+    // When we output the rules, we want the items to be
+    // lexicographically sorted for human readability. So re-order the
+    // itemizer's string-to-int mapping, so when the itemset is sorted
+    // numerically, it's also sorted lexicographically. This saves
+    // a lot of time when outputting rules at the end, as we don't need
+    // to sort them before writing them; since all itemsets are sorted
+    // numerically, they're automatically sorted lexicographically!
     println!("Reordering itemizer lexicographically...");
     let timer = Instant::now();
     itemizer.reorder_sorted(&mut item_count);
