@@ -42,7 +42,9 @@ use std::process;
 use std::time::{Duration, Instant};
 use transaction_reader::TransactionReader;
 
-fn count_item_frequencies(reader: TransactionReader) -> Result<(ItemCounter, usize), Box<Error>> {
+fn count_item_frequencies(
+    reader: TransactionReader,
+) -> Result<(ItemCounter, usize), Box<dyn Error>> {
     let mut item_count: ItemCounter = ItemCounter::new();
     let mut num_transactions = 0;
     for transaction in reader {
@@ -58,7 +60,7 @@ fn duration_as_ms(duration: &Duration) -> u64 {
     (duration.as_secs() * 1_000 as u64) + (duration.subsec_nanos() / 1_000_000) as u64
 }
 
-fn mine_fp_growth(args: &Arguments) -> Result<(), Box<Error>> {
+fn mine_fp_growth(args: &Arguments) -> Result<(), Box<dyn Error>> {
     println!("Mining data set: {}", args.input_file_path);
     println!("Making first pass of dataset to count item frequencies...");
     // Make one pass of the dataset to calculate the item frequencies
@@ -157,7 +159,7 @@ fn write_rules(
     rules: &Vec<Vec<Rule>>,
     output_rules_path: &str,
     itemizer: &Itemizer,
-) -> Result<(), Box<Error>> {
+) -> Result<(), Box<dyn Error>> {
     let mut output = BufWriter::new(File::create(output_rules_path)?);
     writeln!(output, "Antecedent => Consequent,Confidence,Lift,Support")?;
     for chunk in rules.iter() {
@@ -182,7 +184,7 @@ fn write_item_slice(
     output: &mut BufWriter<File>,
     items: &[Item],
     itemizer: &Itemizer,
-) -> Result<(), Box<Error>> {
+) -> Result<(), Box<dyn Error>> {
     let mut first = true;
     for item in items.iter().map(|&id| itemizer.str_of(id)) {
         if !first {
